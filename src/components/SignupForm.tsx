@@ -64,9 +64,11 @@ export default function SignupForm() {
     <div className="w-full max-w-[400px] flex flex-col items-center gap-8">
       {/* Logo */}
       <div className="flex flex-col items-center gap-3">
-        <div className="w-[72px] h-[72px] rounded-full bg-gradient-to-br from-[#b8e6d5] to-[#ffe8b8] flex items-center justify-center text-3xl">
-          🫧
-        </div>
+        <img
+          src="/MoodBubbleLogo.png"
+          alt="MoodBubble"
+          className="w-[100px] h-[100px] object-contain"
+        />
         <h1 className="text-[24px] font-semibold text-[#101828]">MoodBubble</h1>
         <p className="text-[14px] text-[#6a7282]">
           Create an account to start journaling.

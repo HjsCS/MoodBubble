@@ -30,6 +30,7 @@ interface MapViewProps {
   onMarkerClick?: (entry: MapEntry) => void;
   flyTo?: { lat: number; lng: number } | null;
   userLocation?: { lat: number; lng: number } | null;
+  initialCenter?: { lat: number; lng: number } | null;
 }
 
 /** Deterministic pseudo-random from a seed string (for consistent emoji positions) */
@@ -316,6 +317,7 @@ export default function MapView({
   onMarkerClick,
   flyTo,
   userLocation,
+  initialCenter,
 }: MapViewProps) {
   // Build a lookup from entry id → entry object for cluster click
   const entryMap = useRef<Map<string, MapEntry>>(new Map());
@@ -349,7 +351,11 @@ export default function MapView({
 
   return (
     <MapContainer
-      center={[-37.8136, 144.9631]}
+      center={
+        initialCenter
+          ? [initialCenter.lat, initialCenter.lng]
+          : [-37.8136, 144.9631]
+      }
       zoom={13}
       className="h-full w-full z-0"
       zoomControl={false}

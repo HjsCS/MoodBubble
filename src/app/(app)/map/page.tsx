@@ -70,6 +70,11 @@ function MapPageContent() {
     lat: number;
     lng: number;
   } | null>(null);
+  const [gpsReady, setGpsReady] = useState(false);
+  const [initialCenter, setInitialCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [locationName, setLocationName] = useState<string | null>(null);
   const [pickingOnMap, setPickingOnMap] = useState(false);
 
@@ -161,10 +166,13 @@ function MapPageContent() {
     getCurrentPosition()
       .then((pos) => {
         setUserLocation({ lat: pos.lat, lng: pos.lng });
+        setInitialCenter({ lat: pos.lat, lng: pos.lng });
         setFlyTo({ lat: pos.lat, lng: pos.lng });
+        setGpsReady(true);
       })
       .catch(() => {
-        // Permission denied or unavailable — stay on Melbourne CBD default
+        // Permission denied or unavailable — use default, still show map
+        setGpsReady(true);
       });
 
     const stopWatch = watchPosition(
@@ -383,6 +391,21 @@ function MapPageContent() {
     [selectedLngLat],
   );
 
+  // Splash screen while waiting for GPS
+  if (!gpsReady) {
+    return (
+      <div className="fixed inset-0 z-[99999] bg-[#fefbf6] flex flex-col items-center justify-center gap-6">
+        <img
+          src="/MoodBubbleLogo.png"
+          alt="MoodBubble"
+          className="w-[180px] h-[180px] object-contain animate-pulse"
+        />
+        <h1 className="text-[24px] font-semibold text-[#101828]">MoodBubble</h1>
+        <p className="text-[14px] text-[#99a1af]">Finding your location...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full" style={{ height: "100dvh" }}>
       {/* Map */}
@@ -394,6 +417,7 @@ function MapPageContent() {
         onMarkerClick={handleMarkerClick}
         flyTo={flyTo}
         userLocation={userLocation}
+        initialCenter={initialCenter}
       />
 
       {/* Friend mood notification banner */}
