@@ -37,16 +37,12 @@ function MapPageContent() {
   const shouldAddMood = searchParams.get("addMood") === "true";
 
   const [entries, setEntries] = useState<MapMoodEntry[]>([]);
-  const [modalOpen, setModalOpen] = useState(shouldAddMood);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const defaultLngLat = useMemo(
-    () => (shouldAddMood ? { lng: 144.9631, lat: -37.8136 } : null),
-    [shouldAddMood],
-  );
   const [selectedLngLat, setSelectedLngLat] = useState<{
     lng: number;
     lat: number;
-  } | null>(defaultLngLat);
+  } | null>(null);
 
   // Cluster detail panel state
   const [clusterEntries, setClusterEntries] = useState<MapEntry[]>([]);
@@ -120,6 +116,27 @@ function MapPageContent() {
     return stopWatch;
   }, []);
 
+  // Open modal when navigated with ?addMood=true (from BottomNav)
+  useEffect(() => {
+    if (!shouldAddMood) return;
+
+    const openModal = async () => {
+      try {
+        const pos = await getCurrentPosition();
+        setSelectedLngLat({ lat: pos.lat, lng: pos.lng });
+        const name = await reverseGeocode(pos.lat, pos.lng);
+        setLocationName(name);
+      } catch {
+        // GPS unavailable — open modal without coordinates, user can pick on map
+        setSelectedLngLat(null);
+        setLocationName(null);
+      }
+      setModalOpen(true);
+    };
+
+    openModal();
+  }, [shouldAddMood]);
+
   // Filter entries based on time and access filters
   const filteredEntries = useMemo(() => {
     let result = entries;
@@ -147,15 +164,14 @@ function MapPageContent() {
     return result;
   }, [entries, timeFilter, accessFilter]);
 
-  // Handle map click — open modal with location
+  // Handle map click — only responds when in "pick on map" mode
   const handleMapClick = useCallback(
     async (lngLat: { lng: number; lat: number }) => {
-      setSelectedLngLat(lngLat);
-      setLocationName(null); // show "Loading location…" while geocoding
+      if (!pickingOnMap) return; // ignore map clicks when not picking
 
-      if (pickingOnMap) {
-        setPickingOnMap(false);
-      }
+      setSelectedLngLat(lngLat);
+      setLocationName(null);
+      setPickingOnMap(false);
       setModalOpen(true);
 
       // Reverse geocode in background
