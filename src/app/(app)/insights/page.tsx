@@ -11,6 +11,7 @@ import {
   Calendar,
 } from "lucide-react";
 import SettingsButton from "@/components/SettingsButton";
+import BackButton from "@/components/BackButton";
 import { isSupabaseConfigured } from "@/lib/supabase/check";
 import type { MoodEntry } from "@/types/database";
 import type { EmotionCategory } from "@/types/database";
@@ -140,8 +141,8 @@ export default async function InsightsPage() {
   return (
     <div className="bg-[#fefbf6] min-h-screen pb-[120px]">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-[50px] pb-4">
-        <div className="w-[40px] h-[40px]" />
+      <div className="flex items-center justify-between px-5 pt-[max(env(safe-area-inset-top,12px),12px)] pb-3">
+        <BackButton />
         <span className="text-[16px] font-medium text-[#101828]">Profile</span>
         <SettingsButton />
       </div>
