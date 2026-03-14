@@ -34,6 +34,7 @@ export interface MoodEntry {
   note: string | null;
   media_url: string | null;
   visibility: Visibility;
+  reactions: { user_id: string; emoji: string }[];
   created_at: string;
 }
 
@@ -70,6 +71,26 @@ export interface Profile {
 export type ProfileUpdate = Partial<
   Pick<Profile, "display_name" | "avatar_url">
 >;
+
+/** Row shape returned from `mood_reactions` table */
+export interface MoodReaction {
+  id: string;
+  mood_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+  profiles?: {
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+}
+
+/** Aggregated reaction counts for display */
+export interface ReactionSummary {
+  emoji: string;
+  count: number;
+  reacted: boolean; // whether current user has reacted with this emoji
+}
 
 /** Row shape returned from `friendships` table */
 export interface Friendship {

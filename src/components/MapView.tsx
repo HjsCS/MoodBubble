@@ -353,6 +353,8 @@ export default function MapView({
       zoom={13}
       className="h-full w-full z-0"
       zoomControl={false}
+      minZoom={3}
+      worldCopyJump={true}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'

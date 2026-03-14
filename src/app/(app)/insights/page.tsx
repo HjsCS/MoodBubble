@@ -17,6 +17,14 @@ import SettingsButton from "@/components/SettingsButton";
 import BackButton from "@/components/BackButton";
 import ProfileHeader from "@/components/ProfileHeader";
 import type { EmotionCategory } from "@/types/database";
+import { getEmotionColor } from "@/utils/emotion-color";
+
+interface DailyMood {
+  date: string;
+  dayLabel: string;
+  avgScore: number;
+  count: number;
+}
 
 interface InsightsData {
   profile: { display_name: string; email: string; avatar_url: string | null };
@@ -26,6 +34,7 @@ interface InsightsData {
   categoryBreakdown: Partial<Record<EmotionCategory, number>>;
   uniquePlaces: number;
   friendCount: number;
+  dailyMoods: DailyMood[];
 }
 
 /** Skeleton placeholder with pulse animation */
@@ -304,7 +313,7 @@ export default function InsightsPage() {
             </div>
           </div>
 
-          {/* Mood Trend (placeholder chart area) */}
+          {/* Mood Trend */}
           <div className="bg-white rounded-[24px] shadow-[0px_2px_12px_0px_rgba(0,0,0,0.06)] px-5 py-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[15px] font-medium text-[#101828]">
@@ -313,25 +322,52 @@ export default function InsightsPage() {
               <span className="text-[12px] text-[#6a7282]">Last 7 Days</span>
             </div>
 
-            <div className="w-full h-[160px] bg-gradient-to-b from-[rgba(184,230,213,0.3)] to-transparent rounded-[16px] flex items-end justify-between px-4 pb-2">
-              {["Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"].map((day) => (
-                <div key={day} className="flex flex-col items-center gap-2">
+            <div className="w-full h-[160px] bg-gradient-to-b from-[rgba(184,230,213,0.15)] to-transparent rounded-[16px] flex items-end justify-between px-4 pb-2">
+              {(data?.dailyMoods ?? []).map((day) => {
+                const barHeight =
+                  day.count > 0 ? Math.max(day.avgScore * 1.2, 16) : 8;
+                const barColor =
+                  day.count > 0 ? getEmotionColor(day.avgScore) : "#e5e7eb";
+                return (
                   <div
-                    className="w-[6px] rounded-full bg-[#b8e6d5]"
-                    style={{
-                      height: `${40 + Math.floor(Math.random() * 80)}px`,
-                    }}
-                  />
-                  <span className="text-[11px] text-[#9ca3af]">{day}</span>
-                </div>
-              ))}
+                    key={day.date}
+                    className="flex flex-col items-center gap-2"
+                  >
+                    <div className="flex flex-col items-center gap-0.5">
+                      {day.count > 0 && (
+                        <span className="text-[9px] text-[#99a1af]">
+                          {day.count}
+                        </span>
+                      )}
+                      <div
+                        className="w-[8px] rounded-full transition-all"
+                        style={{
+                          height: `${barHeight}px`,
+                          backgroundColor: barColor,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#9ca3af]">
+                      {day.dayLabel}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex items-center justify-around mt-4 pt-4 border-t border-[#f3f4f6]">
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[11px] text-[#6a7282]">Happiest Day</span>
                 <span className="text-[13px] font-medium text-[#101828]">
-                  Saturday
+                  {(() => {
+                    const days = data?.dailyMoods ?? [];
+                    const withData = days.filter((d) => d.count > 0);
+                    if (withData.length === 0) return "—";
+                    const best = withData.reduce((a, b) =>
+                      a.avgScore > b.avgScore ? a : b,
+                    );
+                    return best.dayLabel;
+                  })()}
                 </span>
               </div>
               <div className="w-px h-[40px] bg-[#e5e7eb]" />
@@ -339,8 +375,20 @@ export default function InsightsPage() {
                 <span className="text-[11px] text-[#6a7282]">
                   Overall Trend
                 </span>
-                <span className="text-[13px] font-medium text-[#6baa96]">
-                  ↑ Improving
+                <span
+                  className="text-[13px] font-medium"
+                  style={{ color: getEmotionColor(data?.averageScore ?? 50) }}
+                >
+                  {(() => {
+                    const days = data?.dailyMoods ?? [];
+                    const withData = days.filter((d) => d.count > 0);
+                    if (withData.length < 2) return "— Not enough data";
+                    const first = withData[0].avgScore;
+                    const last = withData[withData.length - 1].avgScore;
+                    if (last > first + 5) return "↑ Improving";
+                    if (last < first - 5) return "↓ Declining";
+                    return "→ Stable";
+                  })()}
                 </span>
               </div>
             </div>

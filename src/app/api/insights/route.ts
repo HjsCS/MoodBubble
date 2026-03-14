@@ -67,6 +67,36 @@ export async function GET() {
       moods.map((m) => `${m.latitude.toFixed(3)},${m.longitude.toFixed(3)}`),
     ).size;
 
+    // Daily mood averages for last 7 days
+    const dailyMoods: {
+      date: string;
+      dayLabel: string;
+      avgScore: number;
+      count: number;
+    }[] = [];
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const dayMoods = moods.filter(
+        (m) => m.created_at.slice(0, 10) === dateStr,
+      );
+      const avg =
+        dayMoods.length > 0
+          ? Math.round(
+              dayMoods.reduce((s, m) => s + m.emotion_score, 0) /
+                dayMoods.length,
+            )
+          : 0;
+      dailyMoods.push({
+        date: dateStr,
+        dayLabel: dayNames[d.getDay()],
+        avgScore: avg,
+        count: dayMoods.length,
+      });
+    }
+
     return NextResponse.json({
       profile: {
         display_name: profile?.display_name ?? "MoodBubble User",
@@ -79,6 +109,7 @@ export async function GET() {
       categoryBreakdown,
       uniquePlaces,
       friendCount,
+      dailyMoods,
     });
   } catch (err) {
     console.error("GET /api/insights error:", err);

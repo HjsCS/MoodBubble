@@ -182,7 +182,7 @@ export default function AddMoodModal({
           <ArrowLeft size={24} className="text-[#364153]" />
         </button>
         <span className="text-[16px] font-medium text-[#101828]">New Mood</span>
-        <span className="text-[14px] font-medium text-[#e8b4a0]">Drafts</span>
+        <div className="w-[40px]" />
       </div>
 
       {/* Form content */}

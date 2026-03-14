@@ -5,6 +5,7 @@ import type { MoodEntryWithAuthor } from "@/types/database";
 import { getEmotionColor, getEmotionBubbleBorder } from "@/utils/emotion-color";
 import { EMOTION_CATEGORIES } from "@/utils/categories";
 import UserAvatar from "@/components/UserAvatar";
+import ReactionBar from "@/components/ReactionBar";
 
 interface MoodDetailCardProps {
   entry: MoodEntry | MoodEntryWithAuthor;
@@ -94,6 +95,13 @@ export default function MoodDetailCard({
         <p className="font-['Poppins',sans-serif] text-[15px] font-medium text-[#1e2939] leading-[24px] mt-2">
           {entry.note}
         </p>
+      )}
+
+      {/* Reactions */}
+      {(entry.reactions ?? []).length > 0 && (
+        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <ReactionBar moodId={entry.id} reactions={entry.reactions ?? []} />
+        </div>
       )}
 
       {/* Time · Location row */}

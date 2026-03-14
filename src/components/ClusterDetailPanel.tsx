@@ -8,6 +8,7 @@ import { EMOTION_CATEGORIES } from "@/utils/categories";
 import { getEmotionColor, getEmotionBubbleBorder } from "@/utils/emotion-color";
 import { reverseGeocode } from "@/utils/geocoding";
 import UserAvatar from "@/components/UserAvatar";
+import ReactionBar from "@/components/ReactionBar";
 
 interface ClusterDetailPanelProps {
   entries: MapEntry[];
@@ -441,6 +442,11 @@ function EntryDetail({
             {entry.visibility === "friends" ? "Shared with Friends" : "Private"}
           </span>
         </div>
+      </div>
+
+      {/* Reaction bar */}
+      <div className="mb-5">
+        <ReactionBar moodId={entry.id} reactions={entry.reactions ?? []} />
       </div>
 
       {/* Locate on map button */}

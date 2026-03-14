@@ -68,14 +68,41 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Don't allow changing user_id
     delete body.user_id;
+    delete body.created_at;
 
-    const { data, error } = await supabase
-      .from("mood_entries")
-      .update(body)
-      .eq("id", id)
-      .eq("user_id", user.id) // Belt-and-suspenders: only owner can update
-      .select()
-      .single();
+    // If updating content fields (not just reactions), enforce 10-minute window
+    const isReactionOnly =
+      Object.keys(body).length === 1 && "reactions" in body;
+
+    if (!isReactionOnly) {
+      const { data: existing } = await supabase
+        .from("mood_entries")
+        .select("created_at")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .single();
+
+      if (!existing) {
+        return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+      }
+
+      const ageMs = Date.now() - new Date(existing.created_at).getTime();
+      if (ageMs > 10 * 60 * 1000) {
+        return NextResponse.json(
+          { error: "Can only edit entries within 10 minutes of creation" },
+          { status: 403 },
+        );
+      }
+    }
+
+    let query = supabase.from("mood_entries").update(body).eq("id", id);
+
+    // Only owner can update content fields; reactions can come from anyone
+    if (!isReactionOnly) {
+      query = query.eq("user_id", user.id);
+    }
+
+    const { data, error } = await query.select().single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
