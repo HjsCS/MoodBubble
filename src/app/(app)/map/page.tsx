@@ -16,6 +16,8 @@ import ClusterDetailPanel from "@/components/ClusterDetailPanel";
 import MoodDetailCard from "@/components/MoodDetailCard";
 import MoodDetailModal from "@/components/MoodDetailModal";
 import FriendMoodBanner from "@/components/FriendMoodBanner";
+import MemoryReminderBanner from "@/components/MemoryReminderBanner";
+import { useMemoryReminders } from "@/hooks/useMemoryReminders";
 import { getCurrentPosition, watchPosition } from "@/utils/geolocation";
 import { reverseGeocode } from "@/utils/geocoding";
 
@@ -272,6 +274,12 @@ function MapPageContent() {
   );
 
   // Mark an entry as read (remove notification)
+  // Memory reminder system (location + anniversary)
+  const { currentReminder, dismissReminder } = useMemoryReminders(
+    entries,
+    userLocation,
+  );
+
   const markRead = useCallback((id: string) => {
     setNewFriendEntryIds((prev) => {
       if (!prev.has(id)) return prev;
@@ -372,6 +380,24 @@ function MapPageContent() {
           }}
           onDismiss={() => setBannerEntries([])}
           onMarkRead={markRead}
+        />
+      )}
+
+      {/* Memory reminder banner (location / anniversary) */}
+      {currentReminder && !bannerEntries.length && (
+        <MemoryReminderBanner
+          reminder={currentReminder}
+          onView={async () => {
+            const entry = currentReminder.entry;
+            setSelectedEntry(entry);
+            setEntryAlreadyLocated(true);
+            setFlyTo({ lat: entry.latitude, lng: entry.longitude });
+            setSelectedEntryLocationName(null);
+            dismissReminder();
+            const name = await reverseGeocode(entry.latitude, entry.longitude);
+            setSelectedEntryLocationName(name);
+          }}
+          onDismiss={dismissReminder}
         />
       )}
 
