@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
+import { Poppins } from "next/font/google";
 import "./globals.css";
+import BottomNav from "@/components/BottomNav";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -27,30 +23,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100`}
+        className={`${poppins.variable} antialiased`}
+        style={{ fontFamily: "var(--font-poppins), sans-serif" }}
       >
-        {/* Global Nav */}
-        <nav className="sticky top-0 z-40 flex items-center justify-between border-b border-zinc-200 bg-white/80 px-6 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            🫧 MoodBubble
-          </Link>
-          <div className="flex gap-4 text-sm font-medium">
-            <Link
-              href="/map"
-              className="hover:text-indigo-600 transition-colors"
-            >
-              Map
-            </Link>
-            <Link
-              href="/insights"
-              className="hover:text-indigo-600 transition-colors"
-            >
-              Insights
-            </Link>
-          </div>
-        </nav>
-
-        <main>{children}</main>
+        <main className="pb-[100px]">{children}</main>
+        <BottomNav />
       </body>
     </html>
   );

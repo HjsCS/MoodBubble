@@ -10,7 +10,11 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { MoodEntry } from "@/types/database";
-import { getEmotionColor } from "@/utils/emotion-color";
+import {
+  getEmotionBubbleBg,
+  getEmotionBubbleBorder,
+  getEmotionAccentColor,
+} from "@/utils/emotion-color";
 import { EMOTION_CATEGORIES } from "@/utils/categories";
 
 interface MapViewProps {
@@ -19,20 +23,37 @@ interface MapViewProps {
 }
 
 /**
- * Create a circular SVG icon for a mood marker.
+ * Get bubble size based on emotion score (Figma style).
+ * Higher scores = larger bubbles.
  */
-function createBubbleIcon(color: string) {
+function getBubbleSizeFromScore(score: number): number {
+  if (score >= 7) return 72;
+  if (score >= 4) return 56;
+  return 40;
+}
+
+/**
+ * Create a circular bubble icon matching the Figma design.
+ */
+function createBubbleIcon(score: number) {
+  const size = getBubbleSizeFromScore(score);
+  const bg = getEmotionBubbleBg(score);
+  const border = getEmotionBubbleBorder(score);
+
   const svg = `
-    <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2" opacity="0.85"/>
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}"
+        fill="${bg}" stroke="${border}" stroke-width="1" opacity="0.95"
+        style="filter: drop-shadow(0px 10px 30px rgba(0,0,0,0.08));"
+      />
     </svg>`;
 
   return L.divIcon({
     html: svg,
-    className: "", // remove default leaflet styles
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -14],
+    className: "",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 4)],
   });
 }
 
@@ -53,46 +74,46 @@ function MapClickHandler({
 }
 
 /**
- * Full-screen Leaflet map that renders mood entries as circle markers.
- * Uses OpenStreetMap tiles (free, no API key required).
+ * Full-screen Leaflet map with Figma-styled bubble markers.
  */
 export default function MapView({ entries, onMapClick }: MapViewProps) {
   return (
     <MapContainer
-      center={[-37.8136, 144.9631]} // Melbourne CBD
+      center={[-37.8136, 144.9631]}
       zoom={13}
       className="h-full w-full z-0"
-      zoomControl={true}
+      zoomControl={false}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
       <MapClickHandler onClick={onMapClick} />
 
       {entries.map((entry) => {
-        const color = getEmotionColor(entry.emotion_score);
         const cat = EMOTION_CATEGORIES[entry.category];
+        const accentColor = getEmotionAccentColor(entry.emotion_score);
 
         return (
           <Marker
             key={entry.id}
             position={[entry.latitude, entry.longitude]}
-            icon={createBubbleIcon(color)}
+            icon={createBubbleIcon(entry.emotion_score)}
           >
             <Popup>
-              <div className="text-sm leading-relaxed">
-                <strong>
-                  {cat.emoji} {cat.label}
-                </strong>
-                <br />
-                Score: {entry.emotion_score}/10
+              <div className="text-sm leading-relaxed min-w-[160px]">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-base">{cat.emoji}</span>
+                  <strong style={{ color: accentColor }}>{cat.label}</strong>
+                </div>
+                <div className="text-[#6a7282] text-xs">
+                  Score: {entry.emotion_score}/10
+                </div>
                 {entry.note && (
-                  <>
-                    <br />
-                    <em className="text-zinc-500">{entry.note}</em>
-                  </>
+                  <p className="text-[#364153] text-xs mt-1 italic">
+                    {entry.note}
+                  </p>
                 )}
               </div>
             </Popup>

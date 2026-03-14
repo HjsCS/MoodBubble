@@ -32,3 +32,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# Design files
+*.pen
+images/
