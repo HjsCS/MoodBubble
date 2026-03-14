@@ -12,7 +12,7 @@ export default function BottomNav() {
   const isProfile = pathname === "/insights";
 
   return (
-    <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-end gap-3">
+    <nav className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom,1.5rem))] left-1/2 -translate-x-1/2 z-50 flex items-end gap-3 mb-4">
       {/* Home */}
       <Link
         href="/map"
