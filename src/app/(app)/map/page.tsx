@@ -441,7 +441,7 @@ function MapPageContent() {
           />
           {/* Card positioned at screen center */}
           <div className="fixed inset-0 z-[9998] flex items-center justify-center px-4 pointer-events-none animate-fade-in">
-            <div className="w-full max-w-[320px] aspect-square pointer-events-auto">
+            <div className="w-full max-w-[320px] pointer-events-auto">
               <MoodDetailCard
                 entry={selectedEntry}
                 authorName={
