@@ -90,9 +90,9 @@ export default function AddMoodModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 10MB limit on original file
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Image must be under 10MB");
+    // 5MB limit on original file (keeps compression fast)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be under 5 MB");
       return;
     }
 

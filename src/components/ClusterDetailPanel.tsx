@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { X, ChevronLeft } from "lucide-react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { X, ChevronLeft, Clock, MapPin, Eye } from "lucide-react";
 import type { MapEntry } from "@/components/MapView";
 import type { EmotionCategory } from "@/types/database";
 import { EMOTION_CATEGORIES } from "@/utils/categories";
-import {
-  getEmotionColor,
-  getEmotionAccentColor,
-  getEmotionLabel,
-} from "@/utils/emotion-color";
+import { getEmotionColor, getEmotionBubbleBorder } from "@/utils/emotion-color";
+import { reverseGeocode } from "@/utils/geocoding";
 
 interface ClusterDetailPanelProps {
   entries: MapEntry[];
@@ -175,8 +172,8 @@ export default function ClusterDetailPanel({
             {/* Divider */}
             <div className="h-px bg-[#f3f4f6] mx-5" />
 
-            {/* Entry list — extra bottom padding for nav bar */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-3 pb-28 space-y-2">
+            {/* Entry list — MoodDetailCard style */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-3 pb-28 space-y-3">
               {filteredEntries.length === 0 ? (
                 <p className="text-center text-[13px] text-[#99a1af] py-8">
                   No entries for this filter.
@@ -184,10 +181,7 @@ export default function ClusterDetailPanel({
               ) : (
                 filteredEntries.map((entry) => {
                   const cat = EMOTION_CATEGORIES[entry.category];
-                  const accentColor = getEmotionAccentColor(
-                    entry.emotion_score,
-                  );
-                  const bgColor = getEmotionColor(entry.emotion_score);
+                  const dotColor = getEmotionBubbleBorder(entry.emotion_score);
                   const isOwn = entry.is_own !== false;
                   const authorName = entry.profiles?.display_name;
 
@@ -195,36 +189,53 @@ export default function ClusterDetailPanel({
                     <button
                       key={entry.id}
                       onClick={() => setSelectedEntry(entry)}
-                      className="w-full flex items-center gap-3 p-3 rounded-[16px] bg-[#fafafa] hover:bg-[#f3f4f6] transition-colors text-left"
+                      className="w-full flex flex-col items-start p-4 rounded-[24px] bg-[#fafafa] hover:bg-[#f3f4f6] transition-colors text-left"
                     >
-                      <div
-                        className="flex-shrink-0 w-[44px] h-[44px] rounded-full flex items-center justify-center text-[14px] font-semibold"
-                        style={{ backgroundColor: bgColor, color: accentColor }}
-                      >
-                        {entry.emotion_score}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[14px]">{cat.emoji}</span>
-                          <span
-                            className="text-[13px] font-medium truncate"
-                            style={{ color: accentColor }}
-                          >
-                            {cat.label}
-                          </span>
-                          {!isOwn && authorName && (
-                            <span className="text-[11px] text-[#9b72c0] ml-1">
-                              {authorName}
-                            </span>
-                          )}
+                      {/* Author label for friend entries */}
+                      {!isOwn && authorName && (
+                        <span className="text-[11px] text-[#9b72c0] font-medium mb-1.5">
+                          {authorName}&apos;s mood
+                        </span>
+                      )}
+
+                      {/* Thumbnail if media exists */}
+                      {entry.media_url && (
+                        <div
+                          className="w-full h-[80px] rounded-[16px] overflow-hidden mb-2.5"
+                          style={{
+                            backgroundColor: getEmotionColor(
+                              entry.emotion_score,
+                            ),
+                          }}
+                        >
+                          <img
+                            src={entry.media_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        {entry.note && (
-                          <p className="text-[12px] text-[#6a7282] truncate mt-0.5">
-                            {entry.note}
-                          </p>
-                        )}
+                      )}
+
+                      {/* Colored dot + Category */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <div
+                          className="w-3 h-3 rounded-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.1)]"
+                          style={{ backgroundColor: dotColor }}
+                        />
+                        <span className="font-['Poppins',sans-serif] text-[11px] font-semibold text-[#6a7282] uppercase tracking-[1px]">
+                          {cat.label}
+                        </span>
                       </div>
-                      <span className="flex-shrink-0 text-[11px] text-[#99a1af]">
+
+                      {/* Note (truncated) */}
+                      {entry.note && (
+                        <p className="text-[14px] font-medium text-[#1e2939] leading-[22px] line-clamp-2">
+                          {entry.note}
+                        </p>
+                      )}
+
+                      {/* Time row */}
+                      <span className="text-[11px] text-[#99a1af] mt-1">
                         {timeAgo(entry.created_at)}
                       </span>
                     </button>
@@ -260,7 +271,7 @@ export default function ClusterDetailPanel({
   );
 }
 
-/** Detail view for a single mood entry */
+/** Detail view for a single mood entry — redesigned to match MoodDetailModal */
 function EntryDetail({
   entry,
   onBack,
@@ -271,14 +282,25 @@ function EntryDetail({
   onLocate: () => void;
 }) {
   const cat = EMOTION_CATEGORIES[entry.category];
-  const accentColor = getEmotionAccentColor(entry.emotion_score);
+  const dotColor = getEmotionBubbleBorder(entry.emotion_score);
   const bgColor = getEmotionColor(entry.emotion_score);
-  const emotionLabel = getEmotionLabel(entry.emotion_score);
   const isOwn = entry.is_own !== false;
   const authorName = entry.profiles?.display_name;
 
+  // Reverse geocode on mount
+  const [locationName, setLocationName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    reverseGeocode(entry.latitude, entry.longitude).then((name) => {
+      if (!cancelled) setLocationName(name);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.latitude, entry.longitude]);
+
   return (
-    <div className="flex flex-col px-5 pt-4 pb-28">
+    <div className="flex flex-col px-5 pt-4 pb-28 overflow-y-auto">
       {/* Back button */}
       <button
         onClick={onBack}
@@ -287,30 +309,6 @@ function EntryDetail({
         <ChevronLeft size={16} />
         Back to list
       </button>
-
-      {/* Score + Category header */}
-      <div className="flex items-center gap-4 mb-4">
-        <div
-          className="w-[56px] h-[56px] rounded-full flex items-center justify-center text-[20px] font-bold"
-          style={{ backgroundColor: bgColor, color: accentColor }}
-        >
-          {entry.emotion_score}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[20px]">{cat.emoji}</span>
-            <span
-              className="text-[16px] font-semibold"
-              style={{ color: accentColor }}
-            >
-              {cat.label}
-            </span>
-          </div>
-          <p className="text-[12px] text-[#6a7282] mt-0.5">
-            {emotionLabel} &middot; Score {entry.emotion_score}/10
-          </p>
-        </div>
-      </div>
 
       {/* Author (if friend entry) */}
       {!isOwn && authorName && (
@@ -321,43 +319,83 @@ function EntryDetail({
         </div>
       )}
 
-      {/* Note */}
-      {entry.note ? (
-        <div className="mb-4">
-          <p className="text-[11px] font-medium text-[#99a1af] uppercase tracking-wider mb-1">
-            Note
-          </p>
-          <p className="text-[14px] text-[#364153] leading-relaxed">
-            {entry.note}
-          </p>
-        </div>
-      ) : (
-        <p className="text-[13px] text-[#99a1af] italic mb-4">No note added.</p>
-      )}
-
-      {/* Photo */}
+      {/* Hero image */}
       {entry.media_url && (
-        <div className="mb-4">
+        <div
+          className="w-full rounded-[24px] overflow-hidden shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] mb-5"
+          style={{ backgroundColor: bgColor }}
+        >
           <img
             src={entry.media_url}
             alt="Mood photo"
-            className="w-full rounded-[16px] max-h-[200px] object-cover"
+            className="w-full max-h-[200px] object-cover"
           />
         </div>
       )}
 
-      {/* Metadata */}
-      <div className="flex items-center gap-4 text-[12px] text-[#6a7282] mb-5">
-        <span>{formatDate(entry.created_at)}</span>
-        <span className="px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[11px]">
-          {entry.visibility === "friends" ? "Friends" : "Private"}
+      {/* Colored dot + Category */}
+      <div className="flex items-center gap-2 mb-3">
+        <div
+          className="w-4 h-4 rounded-full shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]"
+          style={{ backgroundColor: dotColor }}
+        />
+        <span className="font-['Poppins',sans-serif] text-[12px] font-semibold text-[#6a7282] uppercase tracking-[1.2px]">
+          {cat.label}
         </span>
+      </div>
+
+      {/* Note */}
+      {entry.note ? (
+        <p className="font-['Poppins',sans-serif] text-[15px] font-medium text-[#1e2939] leading-[24px] mb-5">
+          {entry.note}
+        </p>
+      ) : (
+        <p className="text-[13px] text-[#99a1af] italic mb-5">No note added.</p>
+      )}
+
+      {/* Metadata section */}
+      <div className="flex flex-col gap-3 mb-5">
+        {/* Time */}
+        <div className="flex items-center gap-3">
+          <div className="w-[32px] h-[32px] rounded-full bg-[#f3f4f6] flex items-center justify-center shrink-0">
+            <Clock size={16} className="text-[#6a7282]" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[13px] font-medium text-[#364153]">
+              {formatDate(entry.created_at)}
+            </span>
+            <span className="text-[11px] text-[#99a1af]">
+              {timeAgo(entry.created_at)}
+            </span>
+          </div>
+        </div>
+
+        {/* Location */}
+        <div className="flex items-center gap-3">
+          <div className="w-[32px] h-[32px] rounded-full bg-[#f3f4f6] flex items-center justify-center shrink-0">
+            <MapPin size={16} className="text-[#6a7282]" />
+          </div>
+          <span className="text-[13px] font-medium text-[#364153]">
+            {locationName ||
+              `${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)}`}
+          </span>
+        </div>
+
+        {/* Visibility */}
+        <div className="flex items-center gap-3">
+          <div className="w-[32px] h-[32px] rounded-full bg-[#f3f4f6] flex items-center justify-center shrink-0">
+            <Eye size={16} className="text-[#6a7282]" />
+          </div>
+          <span className="text-[13px] font-medium text-[#364153]">
+            {entry.visibility === "friends" ? "Shared with Friends" : "Private"}
+          </span>
+        </div>
       </div>
 
       {/* Locate on map button */}
       <button
         onClick={onLocate}
-        className="w-full py-3 rounded-[16px] bg-[#b8e6d5] text-[14px] font-medium text-[#2d6b59] hover:scale-[1.01] active:scale-[0.99] transition-transform"
+        className="w-full py-3.5 rounded-[20px] bg-[#b8e6d5] text-[14px] font-medium text-[#2d6b59] hover:scale-[1.01] active:scale-[0.99] transition-transform"
       >
         Show on Map
       </button>

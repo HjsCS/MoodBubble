@@ -13,6 +13,8 @@ import dynamic from "next/dynamic";
 import { Clock, Eye, LocateFixed } from "lucide-react";
 import AddMoodModal from "@/components/AddMoodModal";
 import ClusterDetailPanel from "@/components/ClusterDetailPanel";
+import MoodDetailCard from "@/components/MoodDetailCard";
+import MoodDetailModal from "@/components/MoodDetailModal";
 import { getCurrentPosition, watchPosition } from "@/utils/geolocation";
 import { reverseGeocode } from "@/utils/geocoding";
 
@@ -49,6 +51,13 @@ function MapPageContent() {
   const [clusterEntries, setClusterEntries] = useState<MapEntry[]>([]);
   const [clusterPanelOpen, setClusterPanelOpen] = useState(false);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Single marker detail state
+  const [selectedEntry, setSelectedEntry] = useState<MapEntry | null>(null);
+  const [selectedEntryLocationName, setSelectedEntryLocationName] = useState<
+    string | null
+  >(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // GPS / location state
   const [userLocation, setUserLocation] = useState<{
@@ -219,6 +228,15 @@ function MapPageContent() {
     [],
   );
 
+  // Handle single marker click — show MoodDetailCard overlay
+  const handleMarkerClick = useCallback(async (entry: MapEntry) => {
+    setSelectedEntry(entry);
+    setSelectedEntryLocationName(null);
+    // Reverse geocode in background
+    const name = await reverseGeocode(entry.latitude, entry.longitude);
+    setSelectedEntryLocationName(name);
+  }, []);
+
   // Handle cluster click — open detail panel
   const handleClusterClick = useCallback((clusterEntries: MapEntry[]) => {
     setClusterEntries(clusterEntries);
@@ -271,6 +289,7 @@ function MapPageContent() {
         entries={filteredEntries}
         onMapClick={handleMapClick}
         onClusterClick={handleClusterClick}
+        onMarkerClick={handleMarkerClick}
         flyTo={flyTo}
         userLocation={userLocation}
       />
@@ -410,6 +429,72 @@ function MapPageContent() {
         <div className="absolute bottom-[120px] left-1/2 -translate-x-1/2 z-20 bg-[#364153] text-white text-[13px] font-medium px-5 py-3 rounded-full shadow-[0px_8px_24px_rgba(0,0,0,0.2)] pointer-events-none select-none">
           Tap the map to drop a pin
         </div>
+      )}
+
+      {/* Single Marker MoodDetailCard overlay */}
+      {selectedEntry && !detailModalOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-[9997] bg-black/10"
+            onClick={() => setSelectedEntry(null)}
+          />
+          {/* Card positioned at screen center */}
+          <div className="fixed inset-0 z-[9998] flex items-center justify-center px-4 pointer-events-none animate-fade-in">
+            <div className="w-full max-w-[320px] aspect-square pointer-events-auto">
+              <MoodDetailCard
+                entry={selectedEntry}
+                authorName={
+                  selectedEntry.is_own === false
+                    ? selectedEntry.profiles?.display_name
+                    : null
+                }
+                onClick={() => setDetailModalOpen(true)}
+              />
+            </div>
+          </div>
+          <style jsx>{`
+            @keyframes fade-in {
+              from {
+                opacity: 0;
+                transform: translateY(16px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            .animate-fade-in {
+              animation: fade-in 0.25s ease-out;
+            }
+          `}</style>
+        </>
+      )}
+
+      {/* Single Marker MoodDetailModal (full detail) */}
+      {selectedEntry && (
+        <MoodDetailModal
+          entry={selectedEntry}
+          isOpen={detailModalOpen}
+          onClose={() => {
+            setDetailModalOpen(false);
+            setSelectedEntry(null);
+          }}
+          onLocate={() => {
+            setDetailModalOpen(false);
+            setSelectedEntry(null);
+            setFlyTo({
+              lat: selectedEntry.latitude,
+              lng: selectedEntry.longitude,
+            });
+          }}
+          authorName={
+            selectedEntry.is_own === false
+              ? selectedEntry.profiles?.display_name
+              : null
+          }
+          locationName={selectedEntryLocationName}
+        />
       )}
 
       {/* Cluster Detail Panel */}

@@ -4,7 +4,6 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
   useMapEvents,
   useMap,
 } from "react-leaflet";
@@ -16,9 +15,7 @@ import type { MoodEntryWithAuthor } from "@/types/database";
 import {
   getEmotionBubbleBg,
   getEmotionBubbleBorder,
-  getEmotionAccentColor,
 } from "@/utils/emotion-color";
-import { EMOTION_CATEGORIES } from "@/utils/categories";
 
 export interface MapEntry extends MoodEntryWithAuthor {
   is_own?: boolean;
@@ -28,6 +25,7 @@ interface MapViewProps {
   entries: MapEntry[];
   onMapClick?: (lngLat: { lng: number; lat: number }) => void;
   onClusterClick?: (entries: MapEntry[]) => void;
+  onMarkerClick?: (entry: MapEntry) => void;
   flyTo?: { lat: number; lng: number } | null;
   userLocation?: { lat: number; lng: number } | null;
 }
@@ -168,6 +166,7 @@ export default function MapView({
   entries,
   onMapClick,
   onClusterClick,
+  onMarkerClick,
   flyTo,
   userLocation,
 }: MapViewProps) {
@@ -230,10 +229,7 @@ export default function MapView({
         }}
       >
         {entries.map((entry) => {
-          const cat = EMOTION_CATEGORIES[entry.category];
-          const accentColor = getEmotionAccentColor(entry.emotion_score);
           const isOwn = entry.is_own !== false;
-          const authorName = entry.profiles?.display_name;
 
           return (
             <Marker
@@ -243,36 +239,14 @@ export default function MapView({
               // @ts-expect-error — custom options for cluster access
               entryId={entry.id}
               entryScore={entry.emotion_score}
-            >
-              <Popup>
-                <div className="text-sm leading-relaxed min-w-[160px]">
-                  {!isOwn && authorName && (
-                    <div className="text-[11px] text-[#9b72c0] font-medium mb-1">
-                      {authorName}&apos;s mood
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-base">{cat.emoji}</span>
-                    <strong style={{ color: accentColor }}>{cat.label}</strong>
-                  </div>
-                  <div className="text-[#6a7282] text-xs">
-                    Score: {entry.emotion_score}/10
-                  </div>
-                  {entry.note && (
-                    <p className="text-[#364153] text-xs mt-1 italic">
-                      {entry.note}
-                    </p>
-                  )}
-                  {entry.media_url && (
-                    <img
-                      src={entry.media_url}
-                      alt=""
-                      className="mt-2 rounded-lg w-full max-h-[80px] object-cover"
-                    />
-                  )}
-                </div>
-              </Popup>
-            </Marker>
+              eventHandlers={{
+                click: (e) => {
+                  // Prevent default popup behavior, fire custom handler instead
+                  e.originalEvent.stopPropagation();
+                  onMarkerClick?.(entry);
+                },
+              }}
+            />
           );
         })}
       </MarkerClusterGroup>

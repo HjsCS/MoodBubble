@@ -1,20 +1,36 @@
 // ============================================================
 // Client-side image compression using Canvas API
 // No external dependencies — runs entirely in the browser
+//
+// Optimized for Supabase Free Plan — keeps every upload under
+// MAX_BYTES (default 200 KB) by progressively lowering quality.
 // ============================================================
+
+/** Absolute ceiling for a compressed image (bytes). */
+const MAX_BYTES = 200 * 1024; // 200 KB
+
+/** Lowest quality we'll try before giving up on further shrinking. */
+const MIN_QUALITY = 0.3;
+
+/** Quality decrement per retry round. */
+const QUALITY_STEP = 0.1;
 
 /**
  * Compress an image file to JPEG with reduced dimensions and quality.
  *
- * @param file     - The original image File from <input type="file">
- * @param maxWidth - Maximum width in pixels (height scales proportionally). Default 800.
- * @param quality  - JPEG quality 0–1. Default 0.7 (~200KB for a typical photo).
- * @returns A compressed JPEG Blob, typically 5–20× smaller than the original.
+ * The function first scales the image down to `maxWidth` (default 600 px),
+ * then iteratively lowers JPEG quality until the result is under
+ * `MAX_BYTES` or `MIN_QUALITY` is reached.
+ *
+ * @param file     - The original image File from `<input type="file">`
+ * @param maxWidth - Maximum width in pixels (height scales proportionally). Default 600.
+ * @param quality  - Initial JPEG quality 0–1. Default 0.6.
+ * @returns A compressed JPEG Blob, typically well under 200 KB.
  */
 export async function compressImage(
   file: File,
-  maxWidth = 800,
-  quality = 0.7,
+  maxWidth = 600,
+  quality = 0.6,
 ): Promise<Blob> {
   // Decode the image
   const bitmap = await createImageBitmap(file);
@@ -28,7 +44,7 @@ export async function compressImage(
     width = maxWidth;
   }
 
-  // Draw onto an OffscreenCanvas (or regular canvas as fallback)
+  // Draw onto a canvas
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -39,7 +55,23 @@ export async function compressImage(
   ctx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
 
-  // Export as JPEG blob
+  // Progressive compression — keep lowering quality until under MAX_BYTES
+  let currentQuality = quality;
+  let blob = await canvasToBlob(canvas, currentQuality);
+
+  while (blob.size > MAX_BYTES && currentQuality > MIN_QUALITY) {
+    currentQuality = Math.max(currentQuality - QUALITY_STEP, MIN_QUALITY);
+    blob = await canvasToBlob(canvas, currentQuality);
+  }
+
+  return blob;
+}
+
+/** Helper — promisified `canvas.toBlob` */
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  quality: number,
+): Promise<Blob> {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
