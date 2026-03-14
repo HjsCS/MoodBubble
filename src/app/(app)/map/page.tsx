@@ -576,6 +576,7 @@ function MapPageContent() {
                     : null
                 }
                 onClick={() => setDetailModalOpen(true)}
+                locationName={selectedEntryLocationName}
               />
             </div>
           </div>

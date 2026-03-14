@@ -23,13 +23,13 @@ const ANNIVERSARY_WINDOWS: [number, string][] = [
 const DATE_TOLERANCE_DAYS = 2;
 
 /** Minimum gap between two reminders (ms) */
-const REMINDER_COOLDOWN_MS = 10 * 1000; // 10 seconds (DEBUG)
+const REMINDER_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 /** Max reminders per session */
-const MAX_REMINDERS_PER_SESSION = 9999; // unlimited (DEBUG)
+const MAX_REMINDERS_PER_SESSION = 5;
 
 /** Check interval for location proximity (ms) */
-const LOCATION_CHECK_INTERVAL_MS = 10 * 1000; // 10 seconds (DEBUG)
+const LOCATION_CHECK_INTERVAL_MS = 60 * 1000; // 60 seconds
 
 /**
  * Hook that produces memory reminders based on:
@@ -58,8 +58,7 @@ export function useMemoryReminders(
     const now = Date.now();
     if (reminderCount.current >= MAX_REMINDERS_PER_SESSION) return;
     if (now - lastReminderTime.current < REMINDER_COOLDOWN_MS) return;
-    // DEBUG: allow repeats — skip shownIds check
-    // if (shownIds.current.has(reminder.entry.id)) return;
+    if (shownIds.current.has(reminder.entry.id)) return;
 
     shownIds.current.add(reminder.entry.id);
     reminderCount.current += 1;
@@ -120,8 +119,7 @@ export function useMemoryReminders(
 
       // Find entries within radius, pick a random one
       const nearby = ownEntries.filter((entry) => {
-        // DEBUG: allow repeats — skip shownIds check
-        // if (shownIds.current.has(entry.id)) return false;
+        if (shownIds.current.has(entry.id)) return false;
         const dist = getDistanceMeters(
           userLocation.lat,
           userLocation.lng,

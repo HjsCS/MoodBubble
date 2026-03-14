@@ -12,6 +12,7 @@ interface MoodDetailCardProps {
   /** Show "Xxx's mood" label for friend entries */
   authorName?: string | null;
   authorAvatarUrl?: string | null;
+  locationName?: string | null;
 }
 
 /** Format relative time */
@@ -44,6 +45,7 @@ export default function MoodDetailCard({
   onClick,
   authorName,
   authorAvatarUrl,
+  locationName,
 }: MoodDetailCardProps) {
   const cat = EMOTION_CATEGORIES[entry.category];
   const dotColor = getEmotionBubbleBorder(entry.emotion_score);
@@ -120,11 +122,25 @@ export default function MoodDetailCard({
       )}
 
       {/* Time · Location row */}
-      <div className="flex items-center mt-[5px]">
+      <div className="flex items-center flex-wrap gap-x-0.5 mt-[5px]">
         <span className="font-['Poppins',sans-serif] text-[12px] font-medium text-[#6a7282]">
           {timeAgo(entry.created_at)}
         </span>
-        {/* Dot separator */}
+        {locationName && (
+          <>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 256 256"
+              className="text-[#6a7282] shrink-0"
+            >
+              <circle cx="128" cy="128" r="48" fill="currentColor" />
+            </svg>
+            <span className="font-['Poppins',sans-serif] text-[12px] font-medium text-[#6a7282] truncate max-w-[160px]">
+              {locationName}
+            </span>
+          </>
+        )}
         <svg
           width="16"
           height="16"
