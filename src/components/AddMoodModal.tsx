@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   ArrowLeft,
   MapPin,
@@ -16,8 +16,15 @@ import {
   Dumbbell,
   Plane,
   Leaf,
+  ChevronRight,
+  X,
+  Loader2,
+  ImagePlus,
 } from "lucide-react";
 import type { EmotionCategory, Visibility } from "@/types/database";
+import LocationPickerSheet from "@/components/LocationPickerSheet";
+import { compressImage } from "@/utils/compress-image";
+import { createClient } from "@/lib/supabase/client";
 
 interface AddMoodModalProps {
   isOpen: boolean;
@@ -27,7 +34,12 @@ interface AddMoodModalProps {
     category: EmotionCategory;
     note: string;
     visibility: Visibility;
+    media_url: string | null;
   }) => void;
+  coordinates?: { lat: number; lng: number } | null;
+  locationName?: string | null;
+  onLocationChange?: (loc: { lat: number; lng: number; name: string }) => void;
+  onPickOnMap?: () => void;
 }
 
 const CATEGORY_ICONS: {
@@ -50,26 +62,107 @@ export default function AddMoodModal({
   isOpen,
   onClose,
   onSubmit,
+  coordinates,
+  locationName,
+  onLocationChange,
+  onPickOnMap,
 }: AddMoodModalProps) {
   const [score, setScore] = useState(5);
   const [category, setCategory] = useState<EmotionCategory>("other");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("private");
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+
+  // Photo state
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup photo preview URL
+  function clearPhoto() {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  }
+
+  // Handle file selection
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 10MB limit on original file
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image must be under 10MB");
+      return;
+    }
+
+    // Clear previous preview
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  }
 
   if (!isOpen) return null;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    let media_url: string | null = null;
+
+    // Upload photo if selected
+    if (photoFile) {
+      setUploading(true);
+      try {
+        const compressed = await compressImage(photoFile);
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const userId = user?.id ?? "anonymous";
+        const path = `${userId}/${Date.now()}.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("mood-media")
+          .upload(path, compressed, {
+            contentType: "image/jpeg",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Upload failed:", uploadError);
+        } else {
+          const { data: urlData } = supabase.storage
+            .from("mood-media")
+            .getPublicUrl(path);
+          media_url = urlData.publicUrl;
+        }
+      } catch (err) {
+        console.error("Photo upload error:", err);
+      } finally {
+        setUploading(false);
+      }
+    }
+
     onSubmit({
       emotion_score: score,
       category,
       note,
       visibility,
+      media_url,
     });
+
+    // Reset state
     setScore(5);
     setCategory("other");
     setNote("");
     setVisibility("private");
+    clearPhoto();
     onClose();
   }
 
@@ -77,7 +170,7 @@ export default function AddMoodModal({
   const sliderPercent = ((score - 1) / 9) * 100;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#fefbf6] overflow-y-auto">
+    <div className="fixed inset-0 z-[9999] bg-[#fefbf6] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-[50px] pb-4">
         <button
@@ -97,15 +190,30 @@ export default function AddMoodModal({
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 px-5 pb-[120px]"
       >
-        {/* Location card */}
-        <div className="bg-white rounded-[24px] shadow-[0px_4px_15px_0px_rgba(0,0,0,0.08)] px-4 pt-4 pb-4 opacity-50">
+        {/* Location card — interactive */}
+        <button
+          type="button"
+          onClick={() => setLocationSheetOpen(true)}
+          className="bg-white rounded-[24px] shadow-[0px_4px_15px_0px_rgba(0,0,0,0.08)] px-4 py-4 w-full flex items-center justify-between"
+        >
           <div className="flex items-center gap-3">
-            <div className="w-[40px] h-[40px] bg-[#b8e6d5] rounded-full flex items-center justify-center">
+            <div className="w-[40px] h-[40px] bg-[#b8e6d5] rounded-full flex items-center justify-center shrink-0">
               <MapPin size={20} className="text-[#6baa96]" />
             </div>
-            <span className="text-[14px] text-[#364153]">Melbourne CBD</span>
+            <div className="flex flex-col items-start">
+              <span className="text-[14px] text-[#364153]">
+                {locationName ??
+                  (coordinates ? "Loading location…" : "Set location")}
+              </span>
+              {coordinates && (
+                <span className="text-[11px] text-[#99a1af]">
+                  {coordinates.lat.toFixed(5)}, {coordinates.lng.toFixed(5)}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+          <ChevronRight size={18} className="text-[#99a1af]" />
+        </button>
 
         {/* Text area */}
         <div className="bg-white rounded-[24px] shadow-[0px_4px_15px_0px_rgba(0,0,0,0.06)] p-5">
@@ -122,17 +230,63 @@ export default function AddMoodModal({
         </div>
 
         {/* Photo section */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileChange}
+          className="hidden"
+        />
         <div className="flex gap-3">
-          <div className="w-[96px] h-[96px] rounded-[16px] bg-[#f3f4f6] shadow-[0px_4px_15px_0px_rgba(0,0,0,0.06)] overflow-hidden">
-            <div className="w-full h-full bg-gradient-to-br from-[#b8e6d5] to-[#ffe8b8] opacity-60" />
+          {/* Photo preview or placeholder */}
+          <div className="w-[96px] h-[96px] rounded-[16px] bg-[#f3f4f6] shadow-[0px_4px_15px_0px_rgba(0,0,0,0.06)] overflow-hidden relative">
+            {photoPreview ? (
+              <>
+                <img
+                  src={photoPreview}
+                  alt="Selected photo"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={clearPhoto}
+                  className="absolute top-1 right-1 w-[22px] h-[22px] bg-black/50 rounded-full flex items-center justify-center"
+                >
+                  <X size={12} className="text-white" />
+                </button>
+              </>
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-[#b8e6d5] to-[#ffe8b8] opacity-60" />
+            )}
           </div>
+          {/* Camera button */}
           <button
             type="button"
+            onClick={() => cameraInputRef.current?.click()}
             className="w-[96px] h-[96px] rounded-[16px] bg-white shadow-[0px_4px_15px_0px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-1"
           >
             <Camera size={24} className="text-[#99a1af]" />
             <span className="text-[11px] font-medium text-[#99a1af]">
-              Add Photo
+              Camera
+            </span>
+          </button>
+          {/* Gallery button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-[96px] h-[96px] rounded-[16px] bg-white shadow-[0px_4px_15px_0px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-1"
+          >
+            <ImagePlus size={24} className="text-[#99a1af]" />
+            <span className="text-[11px] font-medium text-[#99a1af]">
+              Gallery
             </span>
           </button>
         </div>
@@ -249,11 +403,37 @@ export default function AddMoodModal({
         {/* Submit Button */}
         <button
           type="submit"
-          className="w-full h-[56px] rounded-[24px] bg-[#ffe8b8] shadow-[0px_4px_15px_0px_rgba(232,185,99,0.25)] text-[16px] font-medium text-[#9d7d3f] transition-transform hover:scale-[1.01] active:scale-[0.99]"
+          disabled={uploading}
+          className="w-full h-[56px] rounded-[24px] bg-[#ffe8b8] shadow-[0px_4px_15px_0px_rgba(232,185,99,0.25)] text-[16px] font-medium text-[#9d7d3f] transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          Post to Map
+          {uploading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Uploading…
+            </>
+          ) : (
+            "Post to Map"
+          )}
         </button>
       </form>
+
+      {/* Location Picker Sheet */}
+      <LocationPickerSheet
+        isOpen={locationSheetOpen}
+        onClose={() => setLocationSheetOpen(false)}
+        onPickOnMap={() => {
+          setLocationSheetOpen(false);
+          onPickOnMap?.();
+        }}
+        onAddressSelect={(name, lat, lng) => {
+          setLocationSheetOpen(false);
+          onLocationChange?.({ lat, lng, name });
+        }}
+        onGpsSelect={(name, lat, lng) => {
+          setLocationSheetOpen(false);
+          onLocationChange?.({ lat, lng, name });
+        }}
+      />
     </div>
   );
 }

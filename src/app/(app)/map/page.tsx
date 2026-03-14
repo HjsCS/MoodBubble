@@ -10,9 +10,11 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Clock, Eye } from "lucide-react";
+import { Clock, Eye, LocateFixed } from "lucide-react";
 import AddMoodModal from "@/components/AddMoodModal";
 import ClusterDetailPanel from "@/components/ClusterDetailPanel";
+import { getCurrentPosition, watchPosition } from "@/utils/geolocation";
+import { reverseGeocode } from "@/utils/geocoding";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 import type {
@@ -50,6 +52,14 @@ function MapPageContent() {
   const [clusterEntries, setClusterEntries] = useState<MapEntry[]>([]);
   const [clusterPanelOpen, setClusterPanelOpen] = useState(false);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null);
+
+  // GPS / location state
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [locationName, setLocationName] = useState<string | null>(null);
+  const [pickingOnMap, setPickingOnMap] = useState(false);
 
   // Filter state
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
@@ -91,6 +101,25 @@ function MapPageContent() {
     load();
   }, []);
 
+  // GPS: get initial position + watch for updates (blue dot)
+  useEffect(() => {
+    getCurrentPosition()
+      .then((pos) => {
+        setUserLocation({ lat: pos.lat, lng: pos.lng });
+        setFlyTo({ lat: pos.lat, lng: pos.lng });
+      })
+      .catch(() => {
+        // Permission denied or unavailable — stay on Melbourne CBD default
+      });
+
+    const stopWatch = watchPosition(
+      (pos) => setUserLocation({ lat: pos.lat, lng: pos.lng }),
+      () => {}, // watch errors are silent
+    );
+
+    return stopWatch;
+  }, []);
+
   // Filter entries based on time and access filters
   const filteredEntries = useMemo(() => {
     let result = entries;
@@ -119,10 +148,38 @@ function MapPageContent() {
   }, [entries, timeFilter, accessFilter]);
 
   // Handle map click — open modal with location
-  const handleMapClick = useCallback((lngLat: { lng: number; lat: number }) => {
-    setSelectedLngLat(lngLat);
-    setModalOpen(true);
+  const handleMapClick = useCallback(
+    async (lngLat: { lng: number; lat: number }) => {
+      setSelectedLngLat(lngLat);
+      setLocationName(null); // show "Loading location…" while geocoding
+
+      if (pickingOnMap) {
+        setPickingOnMap(false);
+      }
+      setModalOpen(true);
+
+      // Reverse geocode in background
+      const name = await reverseGeocode(lngLat.lat, lngLat.lng);
+      setLocationName(name);
+    },
+    [pickingOnMap],
+  );
+
+  // Handle "Pick on Map" from modal — close modal, enter pin-drop mode
+  const handlePickOnMap = useCallback(() => {
+    setModalOpen(false);
+    setPickingOnMap(true);
   }, []);
+
+  // Handle location change from address search or GPS in modal
+  const handleLocationChange = useCallback(
+    (loc: { lat: number; lng: number; name: string }) => {
+      setSelectedLngLat({ lat: loc.lat, lng: loc.lng });
+      setLocationName(loc.name);
+      setFlyTo({ lat: loc.lat, lng: loc.lng });
+    },
+    [],
+  );
 
   // Handle cluster click — open detail panel
   const handleClusterClick = useCallback((clusterEntries: MapEntry[]) => {
@@ -143,6 +200,7 @@ function MapPageContent() {
       category: EmotionCategory;
       note: string;
       visibility: Visibility;
+      media_url: string | null;
     }) => {
       if (!selectedLngLat) return;
 
@@ -176,6 +234,7 @@ function MapPageContent() {
         onMapClick={handleMapClick}
         onClusterClick={handleClusterClick}
         flyTo={flyTo}
+        userLocation={userLocation}
       />
 
       {/* Title overlay */}
@@ -285,7 +344,35 @@ function MapPageContent() {
             </div>
           )}
         </div>
+
+        {/* Locate Me Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (userLocation) {
+              setFlyTo({ lat: userLocation.lat, lng: userLocation.lng });
+            } else {
+              getCurrentPosition()
+                .then((pos) => {
+                  setUserLocation({ lat: pos.lat, lng: pos.lng });
+                  setFlyTo({ lat: pos.lat, lng: pos.lng });
+                })
+                .catch(() => {});
+            }
+          }}
+          className="flex items-center justify-center w-[64px] h-[64px] rounded-[20px] bg-white shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)] transition-all hover:scale-105 active:bg-[#e8f4ff]"
+          aria-label="Go to my location"
+        >
+          <LocateFixed size={24} className="text-[#4285F4]" />
+        </button>
       </div>
+
+      {/* "Tap to drop a pin" banner when picking location */}
+      {pickingOnMap && (
+        <div className="absolute bottom-[120px] left-1/2 -translate-x-1/2 z-20 bg-[#364153] text-white text-[13px] font-medium px-5 py-3 rounded-full shadow-[0px_8px_24px_rgba(0,0,0,0.2)] pointer-events-none select-none">
+          Tap the map to drop a pin
+        </div>
+      )}
 
       {/* Cluster Detail Panel */}
       <ClusterDetailPanel
@@ -298,8 +385,15 @@ function MapPageContent() {
       {/* Add Mood Modal */}
       <AddMoodModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setPickingOnMap(false);
+        }}
         onSubmit={handleSubmit}
+        coordinates={selectedLngLat}
+        locationName={locationName}
+        onLocationChange={handleLocationChange}
+        onPickOnMap={handlePickOnMap}
       />
     </div>
   );

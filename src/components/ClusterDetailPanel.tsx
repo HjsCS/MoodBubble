@@ -335,6 +335,17 @@ function EntryDetail({
         <p className="text-[13px] text-[#99a1af] italic mb-4">No note added.</p>
       )}
 
+      {/* Photo */}
+      {entry.media_url && (
+        <div className="mb-4">
+          <img
+            src={entry.media_url}
+            alt="Mood photo"
+            className="w-full rounded-[16px] max-h-[200px] object-cover"
+          />
+        </div>
+      )}
+
       {/* Metadata */}
       <div className="flex items-center gap-4 text-[12px] text-[#6a7282] mb-5">
         <span>{formatDate(entry.created_at)}</span>

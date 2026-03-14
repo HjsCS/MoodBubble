@@ -29,6 +29,7 @@ interface MapViewProps {
   onMapClick?: (lngLat: { lng: number; lat: number }) => void;
   onClusterClick?: (entries: MapEntry[]) => void;
   flyTo?: { lat: number; lng: number } | null;
+  userLocation?: { lat: number; lng: number } | null;
 }
 
 /**
@@ -111,6 +112,19 @@ function createClusterIcon(cluster: L.MarkerCluster) {
 }
 
 /**
+ * Blue dot icon showing user's current GPS position.
+ */
+const userLocationIcon = L.divIcon({
+  html: `<div style="width:20px;height:20px;background:rgba(66,133,244,0.25);border-radius:50%;display:flex;align-items:center;justify-content:center">
+    <div style="width:12px;height:12px;background:#4285F4;border:2px solid white;border-radius:50%;box-shadow:0 0 0 2px rgba(66,133,244,0.4)"></div>
+  </div>`,
+  className: "",
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+  popupAnchor: [0, -14],
+});
+
+/**
  * Inner component to handle map click events.
  */
 function MapClickHandler({
@@ -155,6 +169,7 @@ export default function MapView({
   onMapClick,
   onClusterClick,
   flyTo,
+  userLocation,
 }: MapViewProps) {
   // Build a lookup from entry id → entry object for cluster click
   const entryMap = useRef<Map<string, MapEntry>>(new Map());
@@ -248,12 +263,29 @@ export default function MapView({
                       {entry.note}
                     </p>
                   )}
+                  {entry.media_url && (
+                    <img
+                      src={entry.media_url}
+                      alt=""
+                      className="mt-2 rounded-lg w-full max-h-[80px] object-cover"
+                    />
+                  )}
                 </div>
               </Popup>
             </Marker>
           );
         })}
       </MarkerClusterGroup>
+
+      {/* Blue dot: user's current GPS position */}
+      {userLocation && (
+        <Marker
+          position={[userLocation.lat, userLocation.lng]}
+          icon={userLocationIcon}
+          zIndexOffset={1000}
+          eventHandlers={{ click: (e) => e.originalEvent.stopPropagation() }}
+        />
+      )}
     </MapContainer>
   );
 }
