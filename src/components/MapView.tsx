@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMapEvents,
+} from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import type { MoodEntry } from "@/types/database";
 import { getEmotionColor } from "@/utils/emotion-color";
+import { EMOTION_CATEGORIES } from "@/utils/categories";
 
 interface MapViewProps {
   entries: MoodEntry[];
@@ -12,81 +19,86 @@ interface MapViewProps {
 }
 
 /**
- * Full-screen Mapbox GL map that renders mood entries as circle markers.
- * Uses vanilla mapbox-gl for better performance than react-map-gl wrapper.
+ * Create a circular SVG icon for a mood marker.
+ */
+function createBubbleIcon(color: string) {
+  const svg = `
+    <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2" opacity="0.85"/>
+    </svg>`;
+
+  return L.divIcon({
+    html: svg,
+    className: "", // remove default leaflet styles
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -14],
+  });
+}
+
+/**
+ * Inner component to handle map click events.
+ */
+function MapClickHandler({
+  onClick,
+}: {
+  onClick?: (lngLat: { lng: number; lat: number }) => void;
+}) {
+  useMapEvents({
+    click(e) {
+      onClick?.({ lng: e.latlng.lng, lat: e.latlng.lat });
+    },
+  });
+  return null;
+}
+
+/**
+ * Full-screen Leaflet map that renders mood entries as circle markers.
+ * Uses OpenStreetMap tiles (free, no API key required).
  */
 export default function MapView({ entries, onMapClick }: MapViewProps) {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  return (
+    <MapContainer
+      center={[-37.8136, 144.9631]} // Melbourne CBD
+      zoom={13}
+      className="h-full w-full z-0"
+      zoomControl={true}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
 
-  // Initialise map once
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+      <MapClickHandler onClick={onMapClick} />
 
-    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
+      {entries.map((entry) => {
+        const color = getEmotionColor(entry.emotion_score);
+        const cat = EMOTION_CATEGORIES[entry.category];
 
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
-      center: [144.9631, -37.8136], // Melbourne CBD
-      zoom: 12,
-    });
-
-    map.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-    if (onMapClick) {
-      map.on("click", (e) => {
-        onMapClick({ lng: e.lngLat.lng, lat: e.lngLat.lat });
-      });
-    }
-
-    mapRef.current = map;
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Sync markers with entries
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    // Clear old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    entries.forEach((entry) => {
-      const el = document.createElement("div");
-      const color = getEmotionColor(entry.emotion_score);
-      Object.assign(el.style, {
-        width: "18px",
-        height: "18px",
-        borderRadius: "50%",
-        backgroundColor: color,
-        border: "2px solid rgba(255,255,255,0.7)",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-        cursor: "pointer",
-      });
-
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([entry.longitude, entry.latitude])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 12 }).setHTML(
-            `<div style="font-family:sans-serif;font-size:13px;">
-              <strong>${entry.category}</strong><br/>
-              Score: ${entry.emotion_score}/10<br/>
-              ${entry.note ? `<em>${entry.note}</em>` : ""}
-            </div>`,
-          ),
-        )
-        .addTo(mapRef.current!);
-
-      markersRef.current.push(marker);
-    });
-  }, [entries]);
-
-  return <div ref={mapContainerRef} className="h-full w-full" />;
+        return (
+          <Marker
+            key={entry.id}
+            position={[entry.latitude, entry.longitude]}
+            icon={createBubbleIcon(color)}
+          >
+            <Popup>
+              <div className="text-sm leading-relaxed">
+                <strong>
+                  {cat.emoji} {cat.label}
+                </strong>
+                <br />
+                Score: {entry.emotion_score}/10
+                {entry.note && (
+                  <>
+                    <br />
+                    <em className="text-zinc-500">{entry.note}</em>
+                  </>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+    </MapContainer>
+  );
 }

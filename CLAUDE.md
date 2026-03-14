@@ -25,7 +25,7 @@ emotional landscape that grows over time.
 | Language     | **TypeScript** (strict mode)                |
 | Styling      | **Tailwind CSS v4**                         |
 | Database     | **Supabase** (PostgreSQL + Auth + Storage)  |
-| Map          | **Mapbox GL JS** via `mapbox-gl`            |
+| Map          | **React Leaflet** + OpenStreetMap (free)     |
 | Deployment   | **Vercel** (auto-deploys from `main`)       |
 | Package Mgr  | **npm**                                     |
 
@@ -49,7 +49,7 @@ emotional landscape that grows over time.
 │   │           └── [id]/
 │   │               └── route.ts # GET / PATCH / DELETE single entry
 │   ├── components/             # Reusable React components
-│   │   ├── MapView.tsx         # Mapbox GL map with markers
+│   │   ├── MapView.tsx         # Leaflet map with markers
 │   │   ├── MoodBubble.tsx      # Bubble marker (color + size)
 │   │   ├── AddMoodModal.tsx    # Form modal for new entries
 │   │   └── EntryCard.tsx       # Card displaying a single entry
@@ -83,7 +83,7 @@ emotional landscape that grows over time.
 - Node.js ≥ 18
 - npm
 - A [Supabase](https://supabase.com) project (free tier is fine)
-- A [Mapbox](https://www.mapbox.com) access token (free tier is fine)
+- No map API key needed (uses free OpenStreetMap tiles via Leaflet)
 
 ### Setup
 
@@ -95,7 +95,7 @@ npm install
 
 # 2. Copy env template and fill in your keys
 cp .env.example .env.local
-# Edit .env.local with your Supabase URL, anon key, and Mapbox token
+# Edit .env.local with your Supabase URL and anon key
 
 # 3. Set up the database
 # Go to Supabase Dashboard → SQL Editor → paste & run supabase/schema.sql
@@ -124,7 +124,6 @@ All secrets live in `.env.local` (never committed). Required variables:
 | -------------------------------- | -------------------------------------- |
 | `NEXT_PUBLIC_SUPABASE_URL`       | Supabase project URL                   |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase anonymous/public key          |
-| `NEXT_PUBLIC_MAPBOX_TOKEN`       | Mapbox GL access token                 |
 
 On Vercel, set these in **Project Settings → Environment Variables**.
 Vercel will also auto-inject Supabase env vars if you use the Supabase
@@ -149,11 +148,13 @@ integration.
 - **Generous free tier** — more than enough for hackathon + demo.
 - **Row Level Security** — ready for real auth when needed.
 
-### Why vanilla mapbox-gl (not react-map-gl)?
+### Why React Leaflet + OpenStreetMap (not Mapbox)?
 
-- **Performance** — direct GL context, no wrapper overhead.
-- **Simplicity** — fewer dependencies, simpler marker management.
-- **Full control** — easier to customize popups and interactions.
+- **Free** — no API key, no usage limits, no billing.
+- **Open source** — OpenStreetMap tiles are community-maintained.
+- **React-native API** — `react-leaflet` provides declarative components
+  (`<MapContainer>`, `<Marker>`, `<Popup>`) that fit naturally into React.
+- **Hackathon friendly** — zero setup, works immediately.
 
 ---
 
@@ -292,7 +293,7 @@ injected automatically — no manual configuration needed.
 | Problem                           | Solution                                                   |
 | --------------------------------- | ---------------------------------------------------------- |
 | `NEXT_PUBLIC_SUPABASE_URL` empty  | Check `.env.local` exists and has correct values            |
-| Map doesn't load                  | Verify `NEXT_PUBLIC_MAPBOX_TOKEN` in `.env.local`           |
+| Map doesn't load                  | Check browser console; Leaflet CSS may be missing           |
 | DB queries return empty           | Run `supabase/schema.sql` in SQL Editor, then `seed.sql`   |
 | Build fails with type errors      | Run `npm run build` locally, fix TS errors before pushing   |
 | Middleware deprecation warning     | Next.js 16 warning — safe to ignore for now                |

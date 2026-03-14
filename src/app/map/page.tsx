@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import MapView from "@/components/MapView";
+import dynamic from "next/dynamic";
 import AddMoodModal from "@/components/AddMoodModal";
+
+// Leaflet requires `window` — must be loaded client-side only
+const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 import type { MoodEntry, EmotionCategory, Visibility } from "@/types/database";
 
 export default function MapPage() {
   const [entries, setEntries] = useState<MoodEntry[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedLngLat, setSelectedLngLat] = useState<{ lng: number; lat: number } | null>(null);
+  const [selectedLngLat, setSelectedLngLat] = useState<{
+    lng: number;
+    lat: number;
+  } | null>(null);
 
   // Fetch entries on mount
   useEffect(() => {

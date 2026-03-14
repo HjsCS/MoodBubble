@@ -16,7 +16,7 @@ npm run dev                   # http://localhost:3000
 
 - **Next.js 16** (App Router) + **TypeScript**
 - **Supabase** (PostgreSQL, Auth, Storage)
-- **Mapbox GL JS** (interactive map)
+- **React Leaflet** + OpenStreetMap (interactive map, free)
 - **Tailwind CSS v4**
 - **Vercel** (deployment)
 
