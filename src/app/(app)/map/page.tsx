@@ -243,10 +243,14 @@ function MapPageContent() {
     setClusterPanelOpen(true);
   }, []);
 
-  // Handle entry click in cluster panel — fly to entry
-  const handleEntryClick = useCallback((entry: MapEntry) => {
+  // Handle entry click in cluster panel — fly to entry and show detail card
+  const handleEntryClick = useCallback(async (entry: MapEntry) => {
     setClusterPanelOpen(false);
+    setSelectedEntry(entry);
+    setSelectedEntryLocationName(null);
     setFlyTo({ lat: entry.latitude, lng: entry.longitude });
+    const name = await reverseGeocode(entry.latitude, entry.longitude);
+    setSelectedEntryLocationName(name);
   }, []);
 
   // Handle form submit — no user_id sent, server injects it
