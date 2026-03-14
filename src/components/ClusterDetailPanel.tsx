@@ -141,10 +141,10 @@ export default function ClusterDetailPanel({
             </div>
 
             {/* Category filter pills */}
-            <div className="flex gap-2 px-5 pb-3 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2.5 px-5 pb-4 overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveFilter("all")}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+                className={`flex-shrink-0 flex items-center justify-center px-4 py-2 rounded-full text-[14px] font-medium leading-none transition-colors ${
                   activeFilter === "all"
                     ? "bg-[#364153] text-white"
                     : "bg-[#f3f4f6] text-[#6a7282] hover:bg-[#e5e7eb]"
@@ -160,13 +160,13 @@ export default function ClusterDetailPanel({
                   <button
                     key={cat}
                     onClick={() => setActiveFilter(cat)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+                    className={`flex-shrink-0 flex items-center justify-center gap-1 px-4 py-2 rounded-full text-[14px] font-medium leading-none transition-colors ${
                       activeFilter === cat
                         ? "bg-[#364153] text-white"
                         : "bg-[#f3f4f6] text-[#6a7282] hover:bg-[#e5e7eb]"
                     }`}
                   >
-                    {meta.emoji} {meta.label} ({count})
+                    <span>{meta.emoji}</span> {meta.label} ({count})
                   </button>
                 );
               })}

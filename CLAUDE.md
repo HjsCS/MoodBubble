@@ -199,6 +199,7 @@ configuration needed.
 - Branch naming: `feature/xxx`, `fix/xxx`, `refactor/xxx`.
 - Commit messages: imperative mood, concise. E.g., `add mood entry API route`.
 - Always verify `npm run build` passes before pushing.
+- **Never push to `main` without explicit user approval.** Always ask before pushing.
 
 ---
 
