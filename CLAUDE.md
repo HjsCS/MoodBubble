@@ -93,9 +93,9 @@ git clone git@github.com:HjsCS/Test-Subjects.git
 cd Test-Subjects
 npm install
 
-# 2. Copy env template and fill in your keys
-cp .env.example .env.local
-# Edit .env.local with your Supabase URL and anon key
+# 2. Pull env vars from Vercel (requires Vercel CLI login)
+vercel env pull .env.local
+# Or manually: cp .env.example .env.local and fill in your keys
 
 # 3. Set up the database
 # Go to Supabase Dashboard → SQL Editor → paste & run supabase/schema.sql
@@ -118,16 +118,20 @@ npm run dev        # → http://localhost:3000
 
 ## Environment Variables
 
-All secrets live in `.env.local` (never committed). Required variables:
+All secrets live in `.env.local` (never committed). Use `vercel env pull .env.local`
+to auto-populate from the Vercel × Supabase integration.
 
-| Variable                         | Description                            |
-| -------------------------------- | -------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`       | Supabase project URL                   |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase anonymous/public key          |
+| Variable                         | Side    | Description                       |
+| -------------------------------- | ------- | --------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`       | Client  | Supabase project URL              |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Client  | Supabase anonymous/public key     |
+| `SUPABASE_SERVICE_ROLE_KEY`      | Server  | Full-access key (bypass RLS)      |
+| `SUPABASE_JWT_SECRET`            | Server  | JWT verification secret           |
+| `POSTGRES_URL`                   | Server  | Pooled Postgres connection string |
+| `POSTGRES_URL_NON_POOLING`       | Server  | Direct Postgres connection string |
 
-On Vercel, set these in **Project Settings → Environment Variables**.
-Vercel will also auto-inject Supabase env vars if you use the Supabase
-integration.
+On Vercel, these are auto-injected via the **Supabase integration** — no manual
+configuration needed.
 
 ---
 
