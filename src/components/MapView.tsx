@@ -23,6 +23,7 @@ export interface MapEntry extends MoodEntryWithAuthor {
 
 interface MapViewProps {
   entries: MapEntry[];
+  notificationIds?: Set<string>;
   onMapClick?: (lngLat: { lng: number; lat: number }) => void;
   onClusterClick?: (entries: MapEntry[]) => void;
   onMarkerClick?: (entry: MapEntry) => void;
@@ -44,12 +45,21 @@ function getBubbleSizeFromScore(score: number): number {
  * Create a circular bubble icon.
  * Friend entries get a dashed border to distinguish them.
  */
-function createBubbleIcon(score: number, isOwn: boolean = true) {
+function createBubbleIcon(
+  score: number,
+  isOwn: boolean = true,
+  hasNotification: boolean = false,
+) {
   const size = getBubbleSizeFromScore(score);
   const bg = getEmotionBubbleBg(score);
   const border = getEmotionBubbleBorder(score);
   const strokeDash = isOwn ? "" : 'stroke-dasharray="4 3"';
   const opacity = isOwn ? "0.95" : "0.80";
+
+  // Red notification dot in top-right corner
+  const notifDot = hasNotification
+    ? `<circle cx="${size - 6}" cy="6" r="5" fill="#EF4444" stroke="white" stroke-width="1.5"/>`
+    : "";
 
   const svg = `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
@@ -58,6 +68,7 @@ function createBubbleIcon(score: number, isOwn: boolean = true) {
         opacity="${opacity}" ${strokeDash}
         style="filter: drop-shadow(0px 10px 30px rgba(0,0,0,0.08));"
       />
+      ${notifDot}
     </svg>`;
 
   return L.divIcon({
@@ -164,6 +175,7 @@ function FlyToHandler({
  */
 export default function MapView({
   entries,
+  notificationIds,
   onMapClick,
   onClusterClick,
   onMarkerClick,
@@ -230,12 +242,13 @@ export default function MapView({
       >
         {entries.map((entry) => {
           const isOwn = entry.is_own !== false;
+          const hasNotif = notificationIds?.has(entry.id) ?? false;
 
           return (
             <Marker
               key={entry.id}
               position={[entry.latitude, entry.longitude]}
-              icon={createBubbleIcon(entry.emotion_score, isOwn)}
+              icon={createBubbleIcon(entry.emotion_score, isOwn, hasNotif)}
               // @ts-expect-error — custom options for cluster access
               entryId={entry.id}
               entryScore={entry.emotion_score}

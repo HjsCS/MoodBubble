@@ -15,6 +15,7 @@ import AddMoodModal from "@/components/AddMoodModal";
 import ClusterDetailPanel from "@/components/ClusterDetailPanel";
 import MoodDetailCard from "@/components/MoodDetailCard";
 import MoodDetailModal from "@/components/MoodDetailModal";
+import FriendMoodBanner from "@/components/FriendMoodBanner";
 import { getCurrentPosition, watchPosition } from "@/utils/geolocation";
 import { reverseGeocode } from "@/utils/geocoding";
 
@@ -77,6 +78,14 @@ function MapPageContent() {
   const timeRef = useRef<HTMLDivElement>(null);
   const accessRef = useRef<HTMLDivElement>(null);
 
+  // Notification state — tracks unread friend entries
+  const seenEntryIds = useRef<Set<string>>(new Set());
+  const isFirstLoad = useRef(true);
+  const [newFriendEntryIds, setNewFriendEntryIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bannerEntry, setBannerEntry] = useState<MapEntry | null>(null);
+
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -91,20 +100,49 @@ function MapPageContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch entries on mount
+  // Fetch entries on mount + poll every 30s for new friend moods
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch("/api/moods");
         if (res.ok) {
-          const data = await res.json();
+          const data: MapMoodEntry[] = await res.json();
           setEntries(data);
+
+          // Detect new friend entries (skip on first load)
+          if (isFirstLoad.current) {
+            // Mark all existing entries as seen
+            data.forEach((e) => seenEntryIds.current.add(e.id));
+            isFirstLoad.current = false;
+          } else {
+            const brandNew: string[] = [];
+            data.forEach((e) => {
+              if (!seenEntryIds.current.has(e.id)) {
+                seenEntryIds.current.add(e.id);
+                if (e.is_own === false) {
+                  brandNew.push(e.id);
+                }
+              }
+            });
+            if (brandNew.length > 0) {
+              setNewFriendEntryIds((prev) => {
+                const next = new Set(prev);
+                brandNew.forEach((id) => next.add(id));
+                return next;
+              });
+              // Show banner for the most recent new friend entry
+              const newest = data.find((e) => brandNew.includes(e.id));
+              if (newest) setBannerEntry(newest);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to fetch moods:", err);
       }
     }
     load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // GPS: get initial position + watch for updates (blue dot)
@@ -228,14 +266,27 @@ function MapPageContent() {
     [],
   );
 
-  // Handle single marker click — show MoodDetailCard overlay
-  const handleMarkerClick = useCallback(async (entry: MapEntry) => {
-    setSelectedEntry(entry);
-    setSelectedEntryLocationName(null);
-    // Reverse geocode in background
-    const name = await reverseGeocode(entry.latitude, entry.longitude);
-    setSelectedEntryLocationName(name);
+  // Mark an entry as read (remove notification)
+  const markRead = useCallback((id: string) => {
+    setNewFriendEntryIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, []);
+
+  // Handle single marker click — show MoodDetailCard overlay
+  const handleMarkerClick = useCallback(
+    async (entry: MapEntry) => {
+      markRead(entry.id);
+      setSelectedEntry(entry);
+      setSelectedEntryLocationName(null);
+      const name = await reverseGeocode(entry.latitude, entry.longitude);
+      setSelectedEntryLocationName(name);
+    },
+    [markRead],
+  );
 
   // Handle cluster click — open detail panel
   const handleClusterClick = useCallback((clusterEntries: MapEntry[]) => {
@@ -291,12 +342,33 @@ function MapPageContent() {
       {/* Map */}
       <MapView
         entries={filteredEntries}
+        notificationIds={newFriendEntryIds}
         onMapClick={handleMapClick}
         onClusterClick={handleClusterClick}
         onMarkerClick={handleMarkerClick}
         flyTo={flyTo}
         userLocation={userLocation}
       />
+
+      {/* Friend mood notification banner */}
+      {bannerEntry && (
+        <FriendMoodBanner
+          entry={bannerEntry}
+          onView={async () => {
+            markRead(bannerEntry.id);
+            setSelectedEntry(bannerEntry);
+            setFlyTo({ lat: bannerEntry.latitude, lng: bannerEntry.longitude });
+            setSelectedEntryLocationName(null);
+            setBannerEntry(null);
+            const name = await reverseGeocode(
+              bannerEntry.latitude,
+              bannerEntry.longitude,
+            );
+            setSelectedEntryLocationName(name);
+          }}
+          onDismiss={() => setBannerEntry(null)}
+        />
+      )}
 
       {/* Title overlay */}
       <h1 className="absolute top-[40px] left-[40px] z-10 text-[24px] font-semibold tracking-[-0.4px] text-[#364153]">
@@ -517,6 +589,8 @@ function MapPageContent() {
         isOpen={clusterPanelOpen}
         onClose={() => setClusterPanelOpen(false)}
         onEntryLocate={handleEntryClick}
+        notificationIds={newFriendEntryIds}
+        onMarkRead={markRead}
       />
 
       {/* Add Mood Modal */}

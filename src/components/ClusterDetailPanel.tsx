@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { X, ChevronLeft, Clock, MapPin, Eye } from "lucide-react";
+import { X, ChevronLeft, Clock, MapPin, Eye, ArrowDownUp } from "lucide-react";
 import type { MapEntry } from "@/components/MapView";
 import type { EmotionCategory } from "@/types/database";
 import { EMOTION_CATEGORIES } from "@/utils/categories";
@@ -14,6 +14,8 @@ interface ClusterDetailPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onEntryLocate: (entry: MapEntry) => void;
+  notificationIds?: Set<string>;
+  onMarkRead?: (id: string) => void;
 }
 
 /** Format relative time */
@@ -50,11 +52,14 @@ export default function ClusterDetailPanel({
   isOpen,
   onClose,
   onEntryLocate,
+  notificationIds,
+  onMarkRead,
 }: ClusterDetailPanelProps) {
   const [activeFilter, setActiveFilter] = useState<"all" | EmotionCategory>(
     "all",
   );
   const [selectedEntry, setSelectedEntry] = useState<MapEntry | null>(null);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   // Get unique categories present in the cluster
   const availableCategories = useMemo(() => {
@@ -63,11 +68,25 @@ export default function ClusterDetailPanel({
     return Array.from(cats);
   }, [entries]);
 
-  // Filter entries by selected category
+  // Filter entries by selected category, then sort
   const filteredEntries = useMemo(() => {
-    if (activeFilter === "all") return entries;
-    return entries.filter((e) => e.category === activeFilter);
-  }, [entries, activeFilter]);
+    let result =
+      activeFilter === "all"
+        ? [...entries]
+        : entries.filter((e) => e.category === activeFilter);
+
+    // Sort: notifications first, then by time
+    result.sort((a, b) => {
+      const aNotif = notificationIds?.has(a.id) ? 1 : 0;
+      const bNotif = notificationIds?.has(b.id) ? 1 : 0;
+      if (aNotif !== bNotif) return bNotif - aNotif; // notifications first
+      const aTime = new Date(a.created_at).getTime();
+      const bTime = new Date(b.created_at).getTime();
+      return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
+    });
+
+    return result;
+  }, [entries, activeFilter, sortOrder, notificationIds]);
 
   // Reset filter and detail view when entries change
   useMemo(() => {
@@ -126,16 +145,29 @@ export default function ClusterDetailPanel({
                   {filteredEntries.length} of {entries.length} entries
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setSelectedEntry(null);
-                  onClose();
-                }}
-                className="flex items-center justify-center w-[36px] h-[36px] rounded-full bg-[#f3f4f6] hover:bg-[#e5e7eb] transition-colors"
-                aria-label="Close panel"
-              >
-                <X size={18} className="text-[#6a7282]" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Sort toggle */}
+                <button
+                  onClick={() =>
+                    setSortOrder((o) => (o === "newest" ? "oldest" : "newest"))
+                  }
+                  className="flex items-center gap-1 px-3 h-[36px] rounded-full bg-[#f3f4f6] hover:bg-[#e5e7eb] transition-colors text-[12px] font-medium text-[#6a7282]"
+                  aria-label="Toggle sort order"
+                >
+                  <ArrowDownUp size={14} />
+                  {sortOrder === "newest" ? "Newest" : "Oldest"}
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedEntry(null);
+                    onClose();
+                  }}
+                  className="flex items-center justify-center w-[36px] h-[36px] rounded-full bg-[#f3f4f6] hover:bg-[#e5e7eb] transition-colors"
+                  aria-label="Close panel"
+                >
+                  <X size={18} className="text-[#6a7282]" />
+                </button>
+              </div>
             </div>
 
             {/* Category filter pills — shrink-0 prevents list from pushing over pills */}
@@ -186,12 +218,21 @@ export default function ClusterDetailPanel({
                   const isOwn = entry.is_own !== false;
                   const authorName = entry.profiles?.display_name;
 
+                  const isNew = notificationIds?.has(entry.id) ?? false;
+
                   return (
                     <button
                       key={entry.id}
-                      onClick={() => setSelectedEntry(entry)}
-                      className="w-full flex flex-col items-start p-4 rounded-[24px] bg-[#fafafa] hover:bg-[#f3f4f6] transition-colors text-left"
+                      onClick={() => {
+                        onMarkRead?.(entry.id);
+                        setSelectedEntry(entry);
+                      }}
+                      className="w-full flex flex-col items-start p-4 rounded-[24px] bg-[#fafafa] hover:bg-[#f3f4f6] transition-colors text-left relative"
                     >
+                      {/* Red notification dot */}
+                      {isNew && (
+                        <div className="absolute top-3 right-3 w-[10px] h-[10px] rounded-full bg-[#EF4444] shadow-[0_0_0_2px_white]" />
+                      )}
                       {/* Author label for friend entries */}
                       {!isOwn && authorName && (
                         <div className="flex items-center gap-1.5 mb-1.5">
