@@ -148,7 +148,7 @@ export default function ClusterDetailPanel({
                     : "bg-[#f3f4f6] text-[#6a7282] hover:bg-[#e5e7eb]"
                 }`}
               >
-                <span>🫧</span> All ({entries.length})
+                <span>✨</span> All ({entries.length})
               </button>
 
               {availableCategories.map((cat) => {
