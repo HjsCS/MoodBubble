@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Clock, Eye } from "lucide-react";
 import AddMoodModal from "@/components/AddMoodModal";
+import ClusterDetailPanel from "@/components/ClusterDetailPanel";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 import type {
@@ -12,6 +13,7 @@ import type {
   EmotionCategory,
   Visibility,
 } from "@/types/database";
+import type { MapEntry } from "@/components/MapView";
 
 /** Extended entry with is_own flag from the API */
 interface MapMoodEntry extends MoodEntryWithAuthor {
@@ -34,6 +36,11 @@ function MapPageContent() {
     lat: number;
   } | null>(defaultLngLat);
 
+  // Cluster detail panel state
+  const [clusterEntries, setClusterEntries] = useState<MapEntry[]>([]);
+  const [clusterPanelOpen, setClusterPanelOpen] = useState(false);
+  const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null);
+
   // Fetch entries on mount
   useEffect(() => {
     async function load() {
@@ -54,6 +61,18 @@ function MapPageContent() {
   const handleMapClick = useCallback((lngLat: { lng: number; lat: number }) => {
     setSelectedLngLat(lngLat);
     setModalOpen(true);
+  }, []);
+
+  // Handle cluster click — open detail panel
+  const handleClusterClick = useCallback((entries: MapEntry[]) => {
+    setClusterEntries(entries);
+    setClusterPanelOpen(true);
+  }, []);
+
+  // Handle entry click in cluster panel — fly to entry
+  const handleEntryClick = useCallback((entry: MapEntry) => {
+    setClusterPanelOpen(false);
+    setFlyTo({ lat: entry.latitude, lng: entry.longitude });
   }, []);
 
   // Handle form submit — no user_id sent, server injects it
@@ -91,7 +110,12 @@ function MapPageContent() {
   return (
     <div className="relative h-screen w-full">
       {/* Map */}
-      <MapView entries={entries} onMapClick={handleMapClick} />
+      <MapView
+        entries={entries}
+        onMapClick={handleMapClick}
+        onClusterClick={handleClusterClick}
+        flyTo={flyTo}
+      />
 
       {/* Title overlay */}
       <h1 className="absolute top-[40px] left-[40px] z-10 text-[24px] font-semibold tracking-[-0.4px] text-[#364153]">
@@ -115,6 +139,14 @@ function MapPageContent() {
           <Eye size={24} className="text-[#364153]" />
         </button>
       </div>
+
+      {/* Cluster Detail Panel */}
+      <ClusterDetailPanel
+        entries={clusterEntries}
+        isOpen={clusterPanelOpen}
+        onClose={() => setClusterPanelOpen(false)}
+        onEntryClick={handleEntryClick}
+      />
 
       {/* Add Mood Modal */}
       <AddMoodModal
