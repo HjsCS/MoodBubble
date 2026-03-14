@@ -101,6 +101,20 @@ export default function ClusterDetailPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries]);
 
+  // Reverse geocode cluster location name
+  const [clusterLocationName, setClusterLocationName] = useState<string | null>(
+    null,
+  );
+  useEffect(() => {
+    if (entries.length === 0) return;
+    setClusterLocationName(null);
+    // Use average coordinates of all entries
+    const avgLat = entries.reduce((s, e) => s + e.latitude, 0) / entries.length;
+    const avgLng =
+      entries.reduce((s, e) => s + e.longitude, 0) / entries.length;
+    reverseGeocode(avgLat, avgLng).then((name) => setClusterLocationName(name));
+  }, [entries]);
+
   // Stop touch events from reaching the map
   const stopPropagation = useCallback(
     (e: React.TouchEvent | React.MouseEvent) => {
@@ -147,6 +161,12 @@ export default function ClusterDetailPanel({
               <div>
                 <h2 className="text-[16px] font-semibold text-[#101828]">
                   Mood Entries
+                  {clusterLocationName && (
+                    <span className="text-[12px] font-normal text-[#6a7282]">
+                      {" "}
+                      · {clusterLocationName}
+                    </span>
+                  )}
                 </h2>
                 <p className="text-[12px] text-[#6a7282] mt-0.5">
                   {filteredEntries.length} of {entries.length} entries
@@ -294,6 +314,34 @@ export default function ClusterDetailPanel({
                       <span className="text-[11px] text-[#99a1af] mt-1">
                         {timeAgo(entry.created_at)}
                       </span>
+
+                      {/* Reaction summary (read-only) */}
+                      {(entry.reactions ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(() => {
+                            const counts = new Map<string, number>();
+                            for (const r of entry.reactions ?? []) {
+                              counts.set(
+                                r.emoji,
+                                (counts.get(r.emoji) ?? 0) + 1,
+                              );
+                            }
+                            return Array.from(counts.entries()).map(
+                              ([emoji, count]) => (
+                                <span
+                                  key={emoji}
+                                  className="flex items-center gap-0.5 h-[22px] px-1.5 rounded-full bg-white/80 text-[11px]"
+                                >
+                                  <span>{emoji}</span>
+                                  <span className="text-[10px] text-[#6a7282] font-medium">
+                                    {count}
+                                  </span>
+                                </span>
+                              ),
+                            );
+                          })()}
+                        </div>
+                      )}
                     </button>
                   );
                 })
