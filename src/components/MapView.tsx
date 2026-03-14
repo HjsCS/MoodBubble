@@ -200,9 +200,11 @@ export default function MapView({
       <FlyToHandler flyTo={flyTo ?? null} />
 
       <MarkerClusterGroup
-        maxClusterRadius={60}
+        maxClusterRadius={50}
+        disableClusteringAtZoom={19}
         showCoverageOnHover={false}
-        spiderfyOnMaxZoom={false}
+        spiderfyOnMaxZoom={true}
+        spiderfyDistanceMultiplier={2}
         zoomToBoundsOnClick={false}
         iconCreateFunction={createClusterIcon}
         onClick={(e: L.LeafletEvent) => {

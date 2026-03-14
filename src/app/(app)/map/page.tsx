@@ -145,7 +145,7 @@ function MapPageContent() {
         entries={clusterEntries}
         isOpen={clusterPanelOpen}
         onClose={() => setClusterPanelOpen(false)}
-        onEntryClick={handleEntryClick}
+        onEntryLocate={handleEntryClick}
       />
 
       {/* Add Mood Modal */}
