@@ -59,6 +59,7 @@ function MapPageContent() {
     string | null
   >(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [entryAlreadyLocated, setEntryAlreadyLocated] = useState(false);
 
   // GPS / location state
   const [userLocation, setUserLocation] = useState<{
@@ -84,7 +85,7 @@ function MapPageContent() {
   const [newFriendEntryIds, setNewFriendEntryIds] = useState<Set<string>>(
     new Set(),
   );
-  const [bannerEntry, setBannerEntry] = useState<MapEntry | null>(null);
+  const [bannerEntries, setBannerEntries] = useState<MapEntry[]>([]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -130,9 +131,13 @@ function MapPageContent() {
                 brandNew.forEach((id) => next.add(id));
                 return next;
               });
-              // Show banner for the most recent new friend entry
-              const newest = data.find((e) => brandNew.includes(e.id));
-              if (newest) setBannerEntry(newest);
+              // Show banner for all new friend entries
+              const newEntries = data.filter((e: MapMoodEntry) =>
+                brandNew.includes(e.id),
+              );
+              if (newEntries.length > 0) {
+                setBannerEntries((prev) => [...newEntries, ...prev]);
+              }
             }
           }
         }
@@ -281,6 +286,7 @@ function MapPageContent() {
     async (entry: MapEntry) => {
       markRead(entry.id);
       setSelectedEntry(entry);
+      setEntryAlreadyLocated(false);
       setSelectedEntryLocationName(null);
       const name = await reverseGeocode(entry.latitude, entry.longitude);
       setSelectedEntryLocationName(name);
@@ -298,6 +304,7 @@ function MapPageContent() {
   const handleEntryClick = useCallback(async (entry: MapEntry) => {
     setClusterPanelOpen(false);
     setSelectedEntry(entry);
+    setEntryAlreadyLocated(true);
     setSelectedEntryLocationName(null);
     setFlyTo({ lat: entry.latitude, lng: entry.longitude });
     const name = await reverseGeocode(entry.latitude, entry.longitude);
@@ -351,22 +358,20 @@ function MapPageContent() {
       />
 
       {/* Friend mood notification banner */}
-      {bannerEntry && (
+      {bannerEntries.length > 0 && (
         <FriendMoodBanner
-          entry={bannerEntry}
-          onView={async () => {
-            markRead(bannerEntry.id);
-            setSelectedEntry(bannerEntry);
-            setFlyTo({ lat: bannerEntry.latitude, lng: bannerEntry.longitude });
+          entries={bannerEntries}
+          onViewEntry={async (entry) => {
+            setSelectedEntry(entry);
+            setEntryAlreadyLocated(true);
+            setFlyTo({ lat: entry.latitude, lng: entry.longitude });
             setSelectedEntryLocationName(null);
-            setBannerEntry(null);
-            const name = await reverseGeocode(
-              bannerEntry.latitude,
-              bannerEntry.longitude,
-            );
+            setBannerEntries([]);
+            const name = await reverseGeocode(entry.latitude, entry.longitude);
             setSelectedEntryLocationName(name);
           }}
-          onDismiss={() => setBannerEntry(null)}
+          onDismiss={() => setBannerEntries([])}
+          onMarkRead={markRead}
         />
       )}
 
@@ -517,7 +522,7 @@ function MapPageContent() {
           />
           {/* Card positioned at screen center */}
           <div className="fixed inset-0 z-[9998] flex items-center justify-center px-4 pointer-events-none animate-fade-in">
-            <div className="w-full max-w-[320px] pointer-events-auto">
+            <div className="w-[80%] max-w-[400px] pointer-events-auto">
               <MoodDetailCard
                 entry={selectedEntry}
                 authorName={
@@ -561,14 +566,18 @@ function MapPageContent() {
             setDetailModalOpen(false);
             setSelectedEntry(null);
           }}
-          onLocate={() => {
-            setDetailModalOpen(false);
-            setSelectedEntry(null);
-            setFlyTo({
-              lat: selectedEntry.latitude,
-              lng: selectedEntry.longitude,
-            });
-          }}
+          onLocate={
+            entryAlreadyLocated
+              ? undefined
+              : () => {
+                  setDetailModalOpen(false);
+                  setSelectedEntry(null);
+                  setFlyTo({
+                    lat: selectedEntry.latitude,
+                    lng: selectedEntry.longitude,
+                  });
+                }
+          }
           authorName={
             selectedEntry.is_own === false
               ? selectedEntry.profiles?.display_name

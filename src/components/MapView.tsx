@@ -82,22 +82,33 @@ function createBubbleIcon(
 
 /**
  * Create a custom cluster icon showing entry count with dominant mood color.
+ * Accepts an optional notificationIds set to show a red dot when the cluster
+ * contains unread entries.
  */
-function createClusterIcon(cluster: L.MarkerCluster) {
+function createClusterIcon(cluster: L.MarkerCluster, notifIds?: Set<string>) {
   const childCount = cluster.getChildCount();
   const size = Math.min(48 + childCount * 3, 80);
 
   // Determine dominant mood from child markers
   const childMarkers = cluster.getAllChildMarkers();
   let totalScore = 0;
+  let hasNotif = false;
   childMarkers.forEach((marker) => {
     const score = (marker.options as { entryScore?: number }).entryScore ?? 5;
     totalScore += score;
+    if (notifIds) {
+      const entryId = (marker.options as { entryId?: string }).entryId;
+      if (entryId && notifIds.has(entryId)) hasNotif = true;
+    }
   });
   const avgScore = Math.round(totalScore / childMarkers.length);
 
   const bg = getEmotionBubbleBg(avgScore);
   const border = getEmotionBubbleBorder(avgScore);
+
+  const notifDot = hasNotif
+    ? `<circle cx="${size - 6}" cy="6" r="6" fill="#EF4444" stroke="white" stroke-width="2"/>`
+    : "";
 
   const svg = `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
@@ -110,6 +121,7 @@ function createClusterIcon(cluster: L.MarkerCluster) {
         font-size="${size > 60 ? 16 : 14}" font-weight="600" font-family="system-ui, sans-serif"
         fill="#364153"
       >${childCount}</text>
+      ${notifDot}
     </svg>`;
 
   return L.divIcon({
@@ -184,6 +196,8 @@ export default function MapView({
 }: MapViewProps) {
   // Build a lookup from entry id → entry object for cluster click
   const entryMap = useRef<Map<string, MapEntry>>(new Map());
+  const notifRef = useRef<Set<string> | undefined>(notificationIds);
+  notifRef.current = notificationIds;
 
   useEffect(() => {
     const map = new Map<string, MapEntry>();
@@ -232,7 +246,9 @@ export default function MapView({
         spiderfyOnMaxZoom={true}
         spiderfyDistanceMultiplier={2}
         zoomToBoundsOnClick={false}
-        iconCreateFunction={createClusterIcon}
+        iconCreateFunction={(cluster: L.MarkerCluster) =>
+          createClusterIcon(cluster, notifRef.current)
+        }
         onClick={(e: L.LeafletEvent) => {
           const cluster = e.propagatedFrom as L.MarkerCluster;
           if (cluster && typeof cluster.getAllChildMarkers === "function") {
