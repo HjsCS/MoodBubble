@@ -29,7 +29,7 @@ export interface MoodEntry {
   user_id: string;
   latitude: number;
   longitude: number;
-  emotion_score: number; // 1-10
+  emotion_score: number; // 0-100
   category: EmotionCategory;
   note: string | null;
   media_url: string | null;

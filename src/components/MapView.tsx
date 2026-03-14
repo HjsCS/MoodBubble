@@ -16,6 +16,7 @@ import {
   getEmotionBubbleBg,
   getEmotionBubbleBorder,
 } from "@/utils/emotion-color";
+import { getEmotionEmoji } from "@/utils/emotion-emoji";
 
 export interface MapEntry extends MoodEntryWithAuthor {
   is_own?: boolean;
@@ -31,48 +32,140 @@ interface MapViewProps {
   userLocation?: { lat: number; lng: number } | null;
 }
 
+/** Deterministic pseudo-random from a seed string (for consistent emoji positions) */
+function seededRandom(seed: string): () => number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
+  }
+  return () => {
+    h = (Math.imul(h ^ (h >>> 16), 0x45d9f3b) + 0x1234) | 0;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
 /**
- * Get bubble size based on emotion score.
- * Higher scores = larger bubbles.
+ * Get bubble size based on emotion score (0-100).
  */
 function getBubbleSizeFromScore(score: number): number {
-  if (score >= 7) return 72;
-  if (score >= 4) return 56;
+  if (score >= 70) return 72;
+  if (score >= 40) return 56;
   return 40;
 }
 
 /**
- * Create a circular bubble icon.
- * Friend entries get a dashed border to distinguish them.
+ * Generate a floating emoji element string positioned inside a circle.
+ * Uses collision avoidance — each emoji checks distance from previous ones.
+ */
+function floatingEmoji(
+  emoji: string,
+  size: number,
+  index: number,
+  rng: () => number,
+  occupied: { x: number; y: number }[] = [],
+): string {
+  const emojiSize = Math.max(Math.round(size * 0.35), 14);
+  const radius = size / 2 - emojiSize / 2 - 2;
+  const minDist = emojiSize * 0.8; // collision radius
+
+  // Try up to 20 positions, pick one that doesn't overlap
+  let bestCx = size / 2 - emojiSize / 2;
+  let bestCy = size / 2 - emojiSize / 2;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const angle = rng() * Math.PI * 2;
+    const dist = rng() * radius * 0.8;
+    const cx = size / 2 + Math.cos(angle) * dist - emojiSize / 2;
+    const cy = size / 2 + Math.sin(angle) * dist - emojiSize / 2;
+    const centerX = cx + emojiSize / 2;
+    const centerY = cy + emojiSize / 2;
+
+    const collides = occupied.some((o) => {
+      const dx = o.x - centerX;
+      const dy = o.y - centerY;
+      return Math.sqrt(dx * dx + dy * dy) < minDist;
+    });
+
+    bestCx = cx;
+    bestCy = cy;
+    if (!collides) break;
+  }
+
+  occupied.push({ x: bestCx + emojiSize / 2, y: bestCy + emojiSize / 2 });
+
+  const duration = 4 + rng() * 3; // slower: 4-7 seconds
+  const delay = rng() * -duration;
+  const animName = `float${index}`;
+
+  return `<span style="
+    position:absolute;
+    left:${bestCx}px;top:${bestCy}px;
+    font-size:${emojiSize}px;
+    line-height:1;
+    animation:${animName} ${duration}s ease-in-out ${delay}s infinite;
+    pointer-events:none;
+  ">${emoji}</span>`;
+}
+
+/**
+ * Generate CSS keyframes for floating animations.
+ * Each emoji gets a unique keyframe with slightly different motion.
+ */
+function floatKeyframes(count: number, size: number = 56): string {
+  const range = Math.max(Math.round(size * 0.3), 8);
+  let css = "";
+  for (let i = 0; i < count; i++) {
+    const dx1 = i % 3 === 0 ? range : -range;
+    const dy1 = i % 2 === 0 ? -range : Math.round(range * 0.8);
+    const dx2 =
+      i % 3 === 1 ? -Math.round(range * 0.7) : Math.round(range * 0.6);
+    const dy2 =
+      i % 2 === 1 ? Math.round(range * 0.9) : -Math.round(range * 0.7);
+    css += `@keyframes float${i}{0%,100%{transform:translate(0,0)}33%{transform:translate(${dx1}px,${dy1}px)}66%{transform:translate(${dx2}px,${dy2}px)}}`;
+  }
+  return css;
+}
+
+/**
+ * Create a circular bubble icon with floating emoji.
  */
 function createBubbleIcon(
   score: number,
   isOwn: boolean = true,
   hasNotification: boolean = false,
+  entryId: string = "",
 ) {
   const size = getBubbleSizeFromScore(score);
   const bg = getEmotionBubbleBg(score);
   const border = getEmotionBubbleBorder(score);
-  const strokeDash = isOwn ? "" : 'stroke-dasharray="4 3"';
-  const opacity = isOwn ? "0.95" : "0.80";
+  const borderStyle = isOwn ? `2px solid ${border}` : `2px dashed ${border}`;
+  const opacity = isOwn ? 0.95 : 0.8;
+  const emoji = getEmotionEmoji(score);
 
-  // Red notification dot in top-right corner
+  const rng = seededRandom(entryId || String(score));
+  const emojiHtml = floatingEmoji(emoji, size, 0, rng);
+
   const notifDot = hasNotification
-    ? `<circle cx="${size - 6}" cy="6" r="5" fill="#EF4444" stroke="white" stroke-width="1.5"/>`
+    ? `<span style="position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:#EF4444;border:2px solid white;"></span>`
     : "";
 
-  const svg = `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}"
-        fill="${bg}" stroke="${border}" stroke-width="${isOwn ? 1 : 2}"
-        opacity="${opacity}" ${strokeDash}
-        style="filter: drop-shadow(0px 10px 30px rgba(0,0,0,0.08));"
-      />
-      ${notifDot}
-    </svg>`;
+  const html = `
+    <div style="
+      width:${size}px;height:${size}px;
+      border-radius:50%;
+      background:${bg};
+      border:${borderStyle};
+      opacity:${opacity};
+      position:relative;
+      overflow:hidden;
+      filter:drop-shadow(0px 6px 20px rgba(0,0,0,0.1));
+    ">
+      <style>${floatKeyframes(1, size)}</style>
+      ${emojiHtml}
+    </div>
+    ${notifDot}`;
 
   return L.divIcon({
-    html: svg,
+    html,
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -81,51 +174,81 @@ function createBubbleIcon(
 }
 
 /**
- * Create a custom cluster icon showing entry count with dominant mood color.
- * Accepts an optional notificationIds set to show a red dot when the cluster
- * contains unread entries.
+ * Create a cluster icon with multiple floating emojis.
+ * Shows emojis proportional to the mood distribution inside.
  */
 function createClusterIcon(cluster: L.MarkerCluster, notifIds?: Set<string>) {
   const childCount = cluster.getChildCount();
   const size = Math.min(48 + childCount * 3, 80);
 
-  // Determine dominant mood from child markers
   const childMarkers = cluster.getAllChildMarkers();
   let totalScore = 0;
   let hasNotif = false;
+  const scores: number[] = [];
+
   childMarkers.forEach((marker) => {
-    const score = (marker.options as { entryScore?: number }).entryScore ?? 5;
+    const score = (marker.options as { entryScore?: number }).entryScore ?? 50;
     totalScore += score;
+    scores.push(score);
     if (notifIds) {
       const entryId = (marker.options as { entryId?: string }).entryId;
       if (entryId && notifIds.has(entryId)) hasNotif = true;
     }
   });
-  const avgScore = Math.round(totalScore / childMarkers.length);
 
+  const avgScore = Math.round(totalScore / childMarkers.length);
   const bg = getEmotionBubbleBg(avgScore);
   const border = getEmotionBubbleBorder(avgScore);
 
+  // Determine how many emojis to show (max 3)
+  const maxEmojis = Math.min(scores.length, 3);
+  // Sample proportionally if > 3
+  const step = scores.length / maxEmojis;
+  const sampledScores = Array.from(
+    { length: maxEmojis },
+    (_, i) => scores[Math.floor(i * step)],
+  );
+
+  const rng = seededRandom(`cluster-${avgScore}-${childCount}`);
+  const occupied: { x: number; y: number }[] = [];
+  const emojis = sampledScores
+    .map((s, i) => floatingEmoji(getEmotionEmoji(s), size, i, rng, occupied))
+    .join("");
+
   const notifDot = hasNotif
-    ? `<circle cx="${size - 6}" cy="6" r="6" fill="#EF4444" stroke="white" stroke-width="2"/>`
+    ? `<span style="position:absolute;top:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:#EF4444;border:2px solid white;z-index:1;"></span>`
     : "";
 
-  const svg = `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}"
-        fill="${bg}" stroke="${border}" stroke-width="2"
-        opacity="0.9"
-        style="filter: drop-shadow(0px 10px 30px rgba(0,0,0,0.12));"
-      />
-      <text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central"
-        font-size="${size > 60 ? 16 : 14}" font-weight="600" font-family="system-ui, sans-serif"
-        fill="#364153"
-      >${childCount}</text>
-      ${notifDot}
-    </svg>`;
+  const html = `
+    <div style="
+      width:${size}px;height:${size}px;
+      border-radius:50%;
+      background:${bg};
+      border:2px solid ${border};
+      opacity:0.9;
+      position:relative;
+      overflow:hidden;
+      filter:drop-shadow(0px 6px 20px rgba(0,0,0,0.12));
+    ">
+      <style>${floatKeyframes(maxEmojis, size)}</style>
+      ${emojis}
+      <span style="
+        position:absolute;
+        inset:0;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:${size > 60 ? 16 : 14}px;
+        font-weight:700;
+        color:#364153;
+        text-shadow:0 1px 2px rgba(255,255,255,0.8);
+        pointer-events:none;
+      ">${childCount}</span>
+    </div>
+    ${notifDot}`;
 
   return L.divIcon({
-    html: svg,
+    html,
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -264,7 +387,12 @@ export default function MapView({
             <Marker
               key={entry.id}
               position={[entry.latitude, entry.longitude]}
-              icon={createBubbleIcon(entry.emotion_score, isOwn, hasNotif)}
+              icon={createBubbleIcon(
+                entry.emotion_score,
+                isOwn,
+                hasNotif,
+                entry.id,
+              )}
               // @ts-expect-error — custom options for cluster access
               entryId={entry.id}
               entryScore={entry.emotion_score}

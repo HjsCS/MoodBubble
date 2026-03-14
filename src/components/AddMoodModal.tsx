@@ -24,6 +24,8 @@ import type { EmotionCategory, Visibility } from "@/types/database";
 import LocationPickerSheet from "@/components/LocationPickerSheet";
 import { compressImage } from "@/utils/compress-image";
 import { createClient } from "@/lib/supabase/client";
+import { getEmotionColor, getSliderGradient } from "@/utils/emotion-color";
+import { getEmotionEmoji } from "@/utils/emotion-emoji";
 
 interface AddMoodModalProps {
   isOpen: boolean;
@@ -66,7 +68,7 @@ export default function AddMoodModal({
   onLocationChange,
   onPickOnMap,
 }: AddMoodModalProps) {
-  const [score, setScore] = useState(5);
+  const [score, setScore] = useState(50);
   const [category, setCategory] = useState<EmotionCategory>("other");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("private");
@@ -156,7 +158,7 @@ export default function AddMoodModal({
     });
 
     // Reset state
-    setScore(5);
+    setScore(50);
     setCategory("other");
     setNote("");
     setVisibility("private");
@@ -164,8 +166,8 @@ export default function AddMoodModal({
     onClose();
   }
 
-  // Map score (1-10) to slider percentage
-  const sliderPercent = ((score - 1) / 9) * 100;
+  // Map score (0-100) to slider percentage
+  const sliderPercent = score;
 
   return (
     <div className="fixed inset-0 z-[9999] bg-[#fefbf6] overflow-y-auto">
@@ -310,28 +312,31 @@ export default function AddMoodModal({
 
         {/* Emotion Slider */}
         <div className="bg-white rounded-[24px] shadow-[0px_4px_15px_0px_rgba(0,0,0,0.06)] p-5">
-          <h3 className="text-[14px] font-medium text-[#101828] mb-6">
-            How does this feel?
-          </h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-[14px] font-medium text-[#101828]">
+              How does this feel?
+            </h3>
+            <span className="text-[20px]">{getEmotionEmoji(score)}</span>
+          </div>
 
           {/* Slider track */}
           <div className="relative mb-4">
             <div
               className="w-full h-[8px] rounded-full"
-              style={{
-                backgroundImage:
-                  "linear-gradient(90deg, #b8e6d5 0%, #b8e6d5 20%, #ffe8b8 40%, #ffe8b8 60%, #ffd4d4 80%, #ffd4d4 100%)",
-              }}
+              style={{ backgroundImage: getSliderGradient() }}
             />
             {/* Thumb */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-[32px] h-[32px] rounded-full bg-[#ffe8b8] shadow-[0px_10px_15px_0px_rgba(0,0,0,0.1),0px_4px_6px_0px_rgba(0,0,0,0.1)] cursor-grab"
-              style={{ left: `calc(${sliderPercent}% - 16px)` }}
+              className="absolute top-1/2 -translate-y-1/2 w-[32px] h-[32px] rounded-full shadow-[0px_10px_15px_0px_rgba(0,0,0,0.1),0px_4px_6px_0px_rgba(0,0,0,0.1)] cursor-grab border-2 border-white"
+              style={{
+                left: `calc(${sliderPercent}% - 16px)`,
+                backgroundColor: getEmotionColor(score),
+              }}
             />
             <input
               type="range"
-              min={1}
-              max={10}
+              min={0}
+              max={100}
               value={score}
               onChange={(e) => setScore(Number(e.target.value))}
               className="absolute inset-0 w-full opacity-0 cursor-pointer h-[32px] top-1/2 -translate-y-1/2"
@@ -340,9 +345,9 @@ export default function AddMoodModal({
 
           {/* Labels */}
           <div className="flex items-center justify-between">
-            <span className="text-[12px] text-[#6baa96]">Calm</span>
-            <span className="text-[12px] text-[#e8b963]">Happy</span>
-            <span className="text-[12px] text-[#e89b9b]">Excited</span>
+            <span className="text-[12px] text-[#3B82F6]">💩 Low</span>
+            <span className="text-[12px] text-[#EAB308]">🙂 Neutral</span>
+            <span className="text-[12px] text-[#EF4444]">🌈 High</span>
           </div>
         </div>
 
