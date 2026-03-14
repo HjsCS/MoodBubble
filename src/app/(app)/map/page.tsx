@@ -630,6 +630,14 @@ function MapPageContent() {
           }
           locationName={selectedEntryLocationName}
           onReactionsUpdate={handleReactionsUpdate}
+          onEntryUpdated={(updated) => {
+            setEntries((prev) =>
+              prev.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+            );
+            setSelectedEntry((prev) =>
+              prev && prev.id === updated.id ? { ...prev, ...updated } : prev,
+            );
+          }}
         />
       )}
 
