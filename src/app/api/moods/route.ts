@@ -48,11 +48,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Add a flag to identify which entries belong to the current user
-    const entries = (data ?? []).map((entry) => ({
-      ...entry,
-      is_own: entry.user_id === user.id,
-    }));
+    // Add is_own flag and filter: friend entries only visible for 24 hours
+    const twentyFourHoursAgo = new Date(
+      Date.now() - 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const entries = (data ?? [])
+      .map((entry) => ({
+        ...entry,
+        is_own: entry.user_id === user.id,
+      }))
+      .filter((entry) => {
+        // Own entries — always visible
+        if (entry.is_own) return true;
+        // Friend entries — only visible if created within last 24 hours
+        return entry.created_at >= twentyFourHoursAgo;
+      });
 
     return NextResponse.json(entries);
   } catch (err) {
